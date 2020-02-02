@@ -7,24 +7,24 @@ In the feature I would like to extend this card came for multi player. In this c
 Thus there are many many more options the algorithm needs to test! Thereby the waiting time will be much longer!
 
 # Getting started
-	*	python play.py
-	* Select Human player by (line 35, 35 in play.py)
+*	python play.py
+* Select Human player by (line 35, 35 in play.py)
+```
+action = int(input("Action index to play\n"))
+#action = my_game.getRandomOption_()
+```
+* choose different deck size by e.g.: (line 48 in gameClasses.py)
 	```
-	action = int(input("Action index to play\n"))
-	#action = my_game.getRandomOption_()
+			for val in range(10, 16):# choose different deck size here!
 	```
-	* choose different deck size by e.g.: (line 48 in gameClasses.py)
-		```
-				for val in range(10, 16):# choose different deck size here!
-		```
-	* The smaller the deck the faster the algorithm
-	* Choose Hyperparameters to speed up the algorithm (in play.py)
-		```
-		mcts = VanilaMCTS(n_iterations=1500, depth=15, exploration_constant=300, state=state, player=current_player, game=my_game)
-		```
-		* n_iterations:
-		* depth: depth level of the tree
-		* exploration_constant: exploit a leaf node more or search for even better options?
+* The smaller the deck the faster the algorithm
+* Choose Hyperparameters to speed up the algorithm (in play.py)
+	```
+	mcts = VanilaMCTS(n_iterations=1500, depth=15, exploration_constant=300, state=state, player=current_player, game=my_game)
+	```
+	+ n_iterations:
+	+ depth: depth level of the tree
+	+ exploration_constant: exploit a leaf node more or search for even better options?
 
 # Procedure of Monte Carlo Tree Search
 1. create VanilaMCTS object
