@@ -58,9 +58,10 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 	+ per game: -6.4, -6.6 per game
 * Stats with *60* cards 1-14 15=Joker, and 2 Players (mcts and **random**)
 	+ (n_iterations=1500, depth=15, exploration_constant=300
-		total_rewards: [  13. -266.] for game 10 total time: 1:09:16.619273
-
-
+	+	total_rewards: [  13. -266.] for game 10 total time: 1:09:16.619273
+* 10 Games, Stats with *60* cards, and **4 Players** (["MCTS", "RANDOM", "MCTS", "RANDOM"]))
+	+ n_iterations=100, depth=6, exploration_constant=300
+	+ total_rewards: [ 2. -60. -15. -30.] for game 5 total time: 0:01:12.243909
 
 # TODO
 * extend for multiplayer (you do not know the options of the other players -> imperfect information game!)

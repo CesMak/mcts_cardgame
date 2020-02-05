@@ -260,7 +260,7 @@ class player(object):
 		self.offhand.append(stich)
 
 class game(object):
-	def __init__(self, names_player):
+	def __init__(self, names_player, ai_player= ["RANDOM", "RANDOM"]):
 		self.names_player      = names_player
 		self.nu_players        = len(self.names_player)
 		self.current_round     = 0
@@ -271,6 +271,8 @@ class game(object):
 		self.played_cards      = []  # of one game # see also in players offhand!
 		self.gameOver          = 0
 		self.neuralNetworkInputs = {}
+		self.game_start_player = self.active_player
+		self.ai_player         = ai_player
 		self.rewards           = np.zeros((self.nu_players,))
 		myDeck = deck()
 		myDeck.shuffle()
@@ -286,41 +288,21 @@ class game(object):
 			self.players.append(play)
 
 		for p in self.players:
-			#p.sayHello()
 			p.showHand()
-		#print("The Deck is now:", myDeck.show(), " empty \n \n")
-
-		# fill neuronal network inputs:
-		for i in range(self.nu_players):
-			self.neuralNetworkInputs[i] = np.asarray(self.getCurrentPlayerState(i), dtype=int)
 
 	def reset_game(self):
 		#not used yet.
 		myDeck = deck()
 		myDeck.shuffle()
-		info = {}
 		self.nu_games_played +=1
-		for player in self.players:
-			player.total_result +=player.countResult(player.offhand)
-			print(">>>Total of", player.name,"is", player.total_result, "last game:", player.countResult(player.offhand))
-			info[str(player.name)[0]+"_tr"] = player.total_result
-			info[str(player.name)[0]+"_lg"] = player.countResult(player.offhand)
-			player.draw(myDeck, self.total_rounds)
-			player.offhand         = []
 
-		self.active_player     =  0 # Tim always starts!
-		self.on_table_cards    = []
+		self.players           = []  # stores players object
+		self.on_table_cards    = []  # stores card on the table
+		self.played_cards      = []  # of one game # see also in players offhand!
 		self.gameOver          = 0
-		self.current_round     = 0
-		self.played_cards     = []
-
-		# fill neuronal network inputs:
-		for i in range(self.nu_players):
-			self.neuralNetworkInputs[i] = np.asarray(self.getCurrentPlayerState(i), dtype=int)
-
-		#print(">>>Played games:"+str(self.nu_games_played)+"\n\n")
-		info["pg"] = self.nu_games_played
-		return info
+		self.rewards           = np.zeros((self.nu_players,))
+		self.setup_game(myDeck)
+		self.active_player = self.nextGamePlayer()
 
 	def getInColor(self):
 		# returns the leading color of the on_table_cards
