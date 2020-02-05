@@ -58,6 +58,8 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 	+ per game: -6.4, -6.6 per game
 * Stats with *60* cards 1-14 15=Joker, and 2 Players (mcts and **random**)
 	+ (n_iterations=1500, depth=15, exploration_constant=300
+		total_rewards: [  13. -266.] for game 10 total time: 1:09:16.619273
+
 
 
 # TODO
