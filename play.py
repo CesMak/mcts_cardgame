@@ -1,21 +1,34 @@
 import numpy as np
 from VanilaMCTS import VanilaMCTS
 from gameClasses import card, deck, player, game
-import datetime
-import stdout
+from gui import GUI
+import datetime # for time it took to play games
+import time
+import stdout  # for silent print
 
-num_games      = 5
+num_games      = 1
 start_time = datetime.datetime.now()
-my_game  = game(["Tim", "Bob", "Frank", "Ann"], ai_player = ["MCTS", "RANDOM", "MCTS", "RANDOM"])
+my_game  = game(["Tim", "Bob", "Frank", "Lea"], ai_player = ["MCTS", "RANDOM", "MCTS", "HUMAN"])
 total_rewards  = np.zeros((my_game.nu_players,))
+
+# Start graphic GUI:
+my_gui = GUI(human_player_idx=3)
+my_gui.start() # start thread!
+my_gui.names = my_game.names_player
 
 for i in range(0, num_games):
 	game_end = False
+	round_finished = False
 	state = (my_game.getGameState())
 	current_player = my_game.active_player
+
+	# Deal Cards for graphic gui:
+	for i in range(my_game.nu_players):
+		my_gui.dealCards(i, my_game.players[i].getHandCardsSorted())
+
 	while not game_end:
 		if "MCTS" in my_game.ai_player[current_player]:
-			mcts = VanilaMCTS(n_iterations=100, depth=6, exploration_constant=300, state=state, player=current_player, game=my_game)
+			mcts = VanilaMCTS(n_iterations=10, depth=3, exploration_constant=300, state=state, player=current_player, game=my_game)
 			stdout.disable()
 			best_action, best_q, depth = mcts.solve()
 			stdout.enable()
@@ -30,10 +43,14 @@ for i in range(0, num_games):
 		elif "RANDOM" in my_game.ai_player[current_player]:
 			action = my_game.getRandomOption_()
 		else: # In case of a human:
-			action = int(input("Action index to play\n"))
+			action = int(input("Action index to play\n")) # console input
 
 		print("I play:", my_game.players[current_player].hand[action])
-		rewards  = my_game.step_idx(action)
+
+		# play card graphically:
+		my_gui.playCard(my_game.players[current_player].hand[action], player=current_player, round_finished=round_finished)
+
+		rewards, round_finished  = my_game.step_idx(action)
 		if rewards is not None:
 			print("\nGame finished with offhand:")
 			for player in my_game.players:
@@ -47,5 +64,11 @@ for i in range(0, num_games):
 		state = (my_game.getGameState())
 		current_player = my_game.active_player
 		print("\n")
+
+		# Used only for GUI: if round finished!
+		if round_finished:
+			time.sleep(2)
+			my_gui.removeInputCards(winner_idx=current_player, results_=rewards)
+		time.sleep(3)
 	my_game.reset_game()
 	print("I reset the next game: ", my_game.nu_games_played)

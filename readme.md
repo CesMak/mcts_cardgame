@@ -59,12 +59,16 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 * Stats with *60* cards 1-14 15=Joker, and 2 Players (mcts and **random**)
 	+ (n_iterations=1500, depth=15, exploration_constant=300
 	+	total_rewards: [  13. -266.] for game 10 total time: 1:09:16.619273
-* 10 Games, Stats with *60* cards, and **4 Players** (["MCTS", "RANDOM", "MCTS", "RANDOM"]))
-	+ n_iterations=100, depth=6, exploration_constant=300
-	+ total_rewards: [ 2. -60. -15. -30.] for game 5 total time: 0:01:12.243909
+* 50 Games, Stats with *60* cards, and **4 Players** (["MCTS", "RANDOM", "MCTS", "RANDOM"]))
+	+ n_iterations=50, depth=15, exploration_constant=300
+	+ total_rewards: [-106. -517.  -71. -504.] for game 50 total time: 0:11:06.290802
+
 
 # TODO
-* extend for multiplayer (you do not know the options of the other players -> imperfect information game!)
+* Done: extend for multiplayer [if you know all cards]
+* Include first round
+* Do Graphics pygame
+* Extend for multiplayer (you do not know the options of the other players -> imperfect information game!)
 * do tests for evaluation on hyperparams (n_iter, exploration_const, depth)
 * Change depth level (such that only x turns are calculated in advance not until the game is finished!)
 

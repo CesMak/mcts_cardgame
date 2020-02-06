@@ -430,6 +430,7 @@ class game(object):
 	def step_idx(self, card_idx):
 		'Out: None    -> game not finished'
 		'     rewards -> game finished'
+		round_finished = False
 		# play the card_idx:
 		played_card = self.players[self.active_player].hand.pop(card_idx)
 		self.on_table_cards.append(played_card)
@@ -440,6 +441,7 @@ class game(object):
 			self.players[player_win_idx].appendCards(self.on_table_cards)
 			self.on_table_cards = []
 			self.active_player  = player_win_idx
+			round_finished = True
 		else:
 			self.active_player = self.getNextPlayer()
 
@@ -448,7 +450,15 @@ class game(object):
 			self.assignRewards()
 			return self.rewards
 		else:
-			return None
+			return None, round_finished
+		# TODO
+		# finished = self.isGameFinished()
+		# self.assignRewards()
+		# if finished is not None:
+		# 	return True, self.rewards
+		# else:
+		# 	return False, self.rewards
+
 
 	def randomStep(self):
 		'Out: None    -> game not finished'
