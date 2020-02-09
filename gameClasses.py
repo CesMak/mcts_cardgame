@@ -457,7 +457,7 @@ class game(object):
 			action_idx_list.append(action_idx)
 		return action_idx_list
 
-	def step_idx(self, card_idx):
+	def step_idx(self, card_idx, auto_shift = True):
 		"""
 		In the shifting phase card_idx = [0,1] shift these cards to left!
 		Out: None    -> game not finished'
@@ -468,7 +468,7 @@ class game(object):
 			self.shifting_phase +=1
 
 			# finish Shifting phase here!!!
-			while self.shifting_phase <4:
+			while self.shifting_phase <4 and auto_shift:
 				self.getNextPlayer()
 				shift_cards = self.getRandomCards()
 				self.shiftCards(shift_cards, self.active_player, self.getNextPlayer_())
@@ -477,7 +477,9 @@ class game(object):
 			if self.shifting_phase==4:
 				for player in self.players:
 					player.hand.extend(player.take_hand)
-			return None
+			if not auto_shift:
+				self.getNextPlayer()
+			return None, False
 
 		# in case card_idx is a simple int value
 		round_finished = False

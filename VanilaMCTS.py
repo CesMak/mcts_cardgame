@@ -212,7 +212,10 @@ class VanilaMCTS(object):
 		print('\n-------Finished Solve---------------')
 		print(state)
 		print('person to play: ', self.tree[(0,)]['player'])
-		if len(state[0][self.tree[(0,)]['player']].hand) == self.game.total_rounds:
+		# Case1: Shifting result (return 2 card idx)
+
+
+		if isinstance(self.tree[(0, best_action)]["cards_away"], list):
 			print("you are in round 0 --> give back the cards to give away!")
 			print("Best action:", best_action)
 			cards_to_give_away = self.tree[(0, best_action)]["cards_away"]
@@ -222,12 +225,13 @@ class VanilaMCTS(object):
 			print("I would give away:")
 			for card in cards_to_give_away:
 				print(hand_before[card])
-
-		print('\nbest_action : %d' % best_action, "which is card:", state[0][self.tree[(0,)]['player']].hand[best_action])
-		print('best_q = %.2f' % (best_q))
-		print('searching depth = %d' % (depth_searched))
-		#print(self.tree)
-		return best_action, best_q, depth_searched
+			return cards_to_give_away, best_q, depth_searched
+		else: # Case 2: Play a card just one index to give back:
+			print('\nbest_action : %d' % best_action, "which is card:", state[0][self.tree[(0,)]['player']].hand[best_action])
+			print('best_q = %.2f' % (best_q))
+			print('searching depth = %d' % (depth_searched))
+			#print(self.tree)
+			return best_action, best_q, depth_searched
 
 
 '''
