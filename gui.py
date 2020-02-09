@@ -28,6 +28,7 @@ class GUI(Thread):
 		pygame.init()
 		pygame.font.init()
 
+		self.card_rect_positions = []
 		self.queue = Queue()
 		self.names = []
 		self.list_of_cards = {0: [], 1: [], 2: [], 3: []}
@@ -57,8 +58,8 @@ class GUI(Thread):
 
 	def removeInputCards(self, winner_idx=0, results_=[]):
 		self.clear()
-		for i in range(4):
-					self.dealCards(i, self.list_of_cards[i], appendCard=0)
+		# for i in range(4):
+		# 			self.dealCards(i, self.list_of_cards[i], appendCard=0)
 		self.input_cards   = {0: 0, 1: 0, 2: 0, 3: 0}
 		#show stats:
 		my_text = ""
@@ -116,6 +117,7 @@ class GUI(Thread):
 		x = _screenWidth // 7 - imageWidth // 2
 		y = _screenHeight // nu_cards+index*37
 		self.queue.put((GUI.MessageType.SURFACE, cardImage, (x, y), card))
+		self.card_rect_positions.append(cardImage)
 		self.nameLeft(self.names[3])
 
 	def cardDown(self, card, nu_cards=2, index=0, show_back=False):
@@ -261,6 +263,11 @@ class GUI(Thread):
 				if event.type == pygame.QUIT:
 					close = True
 					break
+				if event.type == pygame.MOUSEBUTTONDOWN:
+					x, y = event.pos
+					print(x, y)
+					if self.card_rect_positions[0].get_rect().collidepoint(x, y):
+						print('clicked on image')
 			if close:
 				break
 
@@ -274,7 +281,7 @@ class GUI(Thread):
 					surface = item[1]
 					x, y = item[2]
 					self.screen.blit(surface, (x, y))
-				elif messageType is GUI.MessageType.RECT:
+				elif messageType is GUI.MessageType.RECT:#übermale namen mit grün
 					my_rect = item[1]
 					self.screen.fill(BACKGROUND, rect=my_rect)
 				# Clear the screen

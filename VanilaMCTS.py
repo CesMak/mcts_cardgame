@@ -29,6 +29,7 @@ class VanilaMCTS(object):
 		#print("\nSet state:\n", state, "\nplayer:", player)
 		tree = {root_id: {'state': state,
 						  'player': player,
+						  'cards_away': [],
 						  'child': [],
 						  'parent': None,
 						  'n': 0,
@@ -79,7 +80,7 @@ class VanilaMCTS(object):
 		# print('n_child: ', n_child)
 		# print('selected leaf node: ')
 		# print(self.tree[leaf_node_id])
-		print("selected:", leaf_node_id, "to expand at depth:",depth)
+		print("selected:", leaf_node_id, "to expand at depth:", depth)
 		return leaf_node_id, depth
 
 	def expansion(self, leaf_node_id):
@@ -95,29 +96,41 @@ class VanilaMCTS(object):
 		self.game.setState(leaf_state+[current_player])
 
 		rewards = self.game.isGameFinished()
-		possible_actions = self.game.getValidOptions(current_player)
+
+		shifting_phase = True if self.game.shifting_phase<self.game.nu_players else False
+		possible_actions = []
+		if shifting_phase:
+			print("Now in shifting phase!!!")
+			possible_actions = (self.game.getShiftOptions())
+		else:
+			possible_actions = self.game.getValidOptions(current_player)
+
+		print(possible_actions, len(self.game.players[current_player].hand))
 		child_node_id = leaf_node_id # default value
 		if rewards is None:
 			'''
 			when leaf state is not terminal state
 			'''
 			childs = []
-			for action_set in possible_actions:
-				action_idx, action  = action_set
+			for uuu, action_set in enumerate(possible_actions):
 				self.game.setState(deepcopy(leaf_state)+[current_player])
-				self.game.step_idx(action_idx)
-
+				self.game.step_idx(action_set)
+				tmp = action_set
+				if isinstance(action_set, list):
+					action_set = uuu#int(str(action_set[0])+str(action_set[1]))
 				state = self.game.getGameState()
-				child_id = leaf_node_id + (action_idx, )
+				child_id = leaf_node_id + (action_set, )
 				childs.append(child_id)
 				self.tree[child_id] = {'state': state,
 									   'player': self.game.active_player,
+									   'cards_away': tmp,
 									   'child': [],
 									   'parent': leaf_node_id,
 									   'n': 0, 'w': 0, 'q':0}
-				self.tree[leaf_node_id]['child'].append(action_idx)
+				self.tree[leaf_node_id]['child'].append(action_set)
 			rand_idx = np.random.randint(low=0, high=len(childs), size=1)
 			print('childs: ', childs)
+			print("lenght childs", len(childs))
 			print("state", state)
 			print("expand now random index:", rand_idx)
 			child_node_id = childs[rand_idx[0]]
@@ -136,7 +149,6 @@ class VanilaMCTS(object):
 		state = deepcopy(self.tree[child_node_id]['state'])
 		previous_player = deepcopy(self.tree[child_node_id]['player'])
 		anybody_win = False
-		# weg damit:? TODO
 		self.game.setState(state+[previous_player])
 
 		while not anybody_win:
@@ -200,6 +212,17 @@ class VanilaMCTS(object):
 		print('\n-------Finished Solve---------------')
 		print(state)
 		print('person to play: ', self.tree[(0,)]['player'])
+		if len(state[0][self.tree[(0,)]['player']].hand) == self.game.total_rounds:
+			print("you are in round 0 --> give back the cards to give away!")
+			print("Best action:", best_action)
+			cards_to_give_away = self.tree[(0, best_action)]["cards_away"]
+			print("I would give away these cards:", cards_to_give_away)
+			hand_before = state[0][self.tree[(0,)]['player']].hand
+			print("Of these cards\n", hand_before)
+			print("I would give away:")
+			for card in cards_to_give_away:
+				print(hand_before[card])
+
 		print('\nbest_action : %d' % best_action, "which is card:", state[0][self.tree[(0,)]['player']].hand[best_action])
 		print('best_q = %.2f' % (best_q))
 		print('searching depth = %d' % (depth_searched))

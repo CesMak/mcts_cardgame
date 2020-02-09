@@ -72,6 +72,7 @@ class player(object):
 		self.hand         = []
 		self.offhand      = [] # contains won cards of each round (for 4 players 4 cards!)
 		self.total_result = 0  # the total result as noted down in a book!
+		self.take_hand    = [] # cards in first phase cards to take!
 		#self.player_style = style # 0: play random card, 1: play card with lowest value, 2: ai player
 
 	def sayHello(self):
@@ -274,6 +275,8 @@ class game(object):
 		self.game_start_player = self.active_player
 		self.ai_player         = ai_player
 		self.rewards           = np.zeros((self.nu_players,))
+		self.shifting_phase    = 0 # counts to nu_player -> in this case shifting phase is finished!
+		self.nu_shift_cards    = 2 # shift 2 cards!
 		myDeck = deck()
 		myDeck.shuffle()
 		self.total_rounds      = int(len(myDeck.cards)/self.nu_players)
@@ -348,6 +351,14 @@ class game(object):
 			prev_player = input_number -1
 		return prev_player
 
+	def getNextPlayer_(self):
+		tmp = self.active_player
+		if tmp < self.nu_players-1:
+			tmp+=1
+		else:
+			tmp = 0
+		return tmp
+
 	def getNextPlayer(self):
 		if self.active_player < self.nu_players-1:
 			self.active_player+=1
@@ -402,15 +413,16 @@ class game(object):
 		return [self.players[playeridx].hand, self.on_table_cards, self.played_cards]
 
 	def getGameState(self):
-		return [self.players, self.rewards, self.on_table_cards, self.played_cards]
+		return [self.players, self.rewards, self.on_table_cards, self.played_cards, self.shifting_phase]
 
 	def setState(self, game_state):
-		[players, rewards, on_table_cards, played_cards, active_player] = game_state
+		[players, rewards, on_table_cards, played_cards, shifting_phase, active_player] = game_state
 		self.active_player  = active_player
 		self.on_table_cards = on_table_cards
 		self.players        = players
 		self.played_cards   = played_cards
 		self.rewards        = rewards
+		self.shifting_phase = shifting_phase
 
 	def isGameFinished(self):
 		cards = 0
@@ -421,15 +433,53 @@ class game(object):
 		else:
 			return None
 
+	def getShiftOptions(self):
+		# Return all options to shift 2 not unique card idx.
+		n   = len(self.players[self.active_player].hand)
+		i   = 0
+		options = []
+		for j in range(0, n-1):
+			tmp = i
+			while tmp<n-1:
+				options.append([j, tmp+1])
+				tmp +=1
+			i = i+1
+		return options
+
 	def getValidOptions(self, player):
 		incolor = None
 		if len(self.on_table_cards)>0:
 			incolor = self.on_table_cards[0].color
-		return self.players[player].getOptions(incolor)
+		options =  self.players[player].getOptions(incolor)
+		action_idx_list = []
+		for option in options:
+			action_idx, card = option
+			action_idx_list.append(action_idx)
+		return action_idx_list
 
 	def step_idx(self, card_idx):
-		'Out: None    -> game not finished'
-		'     rewards -> game finished'
+		"""
+		In the shifting phase card_idx = [0,1] shift these cards to left!
+		Out: None    -> game not finished'
+			rewards  -> game finished'
+		"""
+		if self.shifting_phase <= self.nu_players and isinstance(card_idx, list):
+			self.shiftCards(card_idx, self.active_player, self.getNextPlayer_())
+			self.shifting_phase +=1
+
+			# finish Shifting phase here!!!
+			while self.shifting_phase <4:
+				self.getNextPlayer()
+				shift_cards = self.getRandomCards()
+				self.shiftCards(shift_cards, self.active_player, self.getNextPlayer_())
+				self.shifting_phase +=1
+
+			if self.shifting_phase==4:
+				for player in self.players:
+					player.hand.extend(player.take_hand)
+			return None
+
+		# in case card_idx is a simple int value
 		round_finished = False
 		# play the card_idx:
 		played_card = self.players[self.active_player].hand.pop(card_idx)
@@ -448,7 +498,7 @@ class game(object):
 		finished = self.isGameFinished()
 		if finished is not None:
 			self.assignRewards()
-			return self.rewards
+			return self.rewards, True
 		else:
 			return None, round_finished
 		# TODO
@@ -459,10 +509,26 @@ class game(object):
 		# else:
 		# 	return False, self.rewards
 
+	def shiftCards(self, cards_idx, current_player, next_player):
+		#print("I shift now", cards_idx, "from", self.players[current_player].name, "to", self.players[next_player].name)
+		i=0
+		for card_idx in cards_idx:
+			card = self.players[current_player].hand.pop(card_idx-i) # wenn eine Karte weniger index veringern!
+			self.players[next_player].take_hand.append(card)
+			i+=1
+
+	def getRandomCards(self):
+		# get random indices of cards! (not the same!)
+		shift_cards = []
+		while len(shift_cards)< self.nu_shift_cards:
+			shift_cards.append(random.randrange(len(self.players[self.active_player].hand)))
+			shift_cards = list(dict.fromkeys(shift_cards))
+		return shift_cards
 
 	def randomStep(self):
 		'Out: None    -> game not finished'
 		'     rewards -> game finished'
+		'No shifting phase allowed here - happens in first call of step_idx'
 		incolor = None
 		# play the card:
 		if len(self.on_table_cards)>0:
