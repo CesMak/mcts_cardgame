@@ -40,11 +40,16 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 * w = summed reward at that depth
 * q = w/n
 
+# Proposed Procedure:
+1. Simulate with Random moves
+2. Train a NN (Classifier) with the input of 500 Games
+3. Use the trained NN to Simulate and get better actions
+4. Repeat Setp 2-3
+
 # Achievements
-*	currently for two players
-* both now all cards
-* just 12-14 of each color no jokers (Test1) was done
+*	player can be chosen: RANDOM, MCTS, HUMAN, NN(trained NN with MCTS actions)
 * 1-15 (15=joker) 60 cards for 2 players (Test2) was done
+* included first shifting round (NN plays currently random)
 
 # Statistic details / Performance
 * Stats with 12 cards of 2,13,14 of Blue Green Red Yellow and 2 Players
@@ -63,10 +68,98 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 	+ n_iterations=50, depth=15, exploration_constant=300
 	+ total_rewards: [-106. -517.  -71. -504.] for game 50 total time: 0:11:06.290802
 
+* 50 Game Stats with 4 MCTS Players (Hyper Parameter Search)
+	```
+	total_rewards: [-305. -258. -241. -169.] for game 50 total time: 1:06:36.474031
+	I reset the next game:  50
+	The game was started with:
+	Number Games  : 50
+	Expo Constants: [300, 300, 300, 300]
+	depth		 : [15, 15, 15, 15]
+	Iteraions     : [100, 100, 100, 100]
+
+
+	total_rewards: [-235. -243. -263. -270.] for game 50 total time: 4:09:13.044767
+	I reset the next game:  50
+	The game was started with:
+	Number Games  : 50
+	Expo Constants: [300, 300, 300, 300]
+	depth		 : [15, 15, 15, 15]
+	Iteraions     : [1000, 100, 1000, 100]
+
+
+	total_rewards: [-135. -368. -263. -268.] for game 50 total time: 1:06:20.726154
+	I reset the next game:  50
+	The game was started with:
+	Number Games  : 50
+	Expo Constants: [3000, 300, 3000, 300]
+	depth		 : [15, 15, 15, 15]
+	Iteraions     : [100, 100, 100, 100]
+
+	total_rewards: [-240. -252. -368. -211.] for game 50 total time: 4:13:52.280434
+	I reset the next game:  50
+	The game was started with:
+	Number Games  : 50
+	Expo Constants: [3000, 300, 3000, 300]
+	depth		 : [15, 15, 15, 15]
+	Iteraions     : [100, 1000, 100, 1000]
+
+	total_rewards: [-291. -246. -251. -185.] for game 50 total time: 3:39:30.612880
+	Number Games  : 50
+	Expo Constants: [400, 400, 400, 400]
+	depth		 : [15, 30, 15, 30]
+	Iteraions     : [500, 500, 500, 500]
+
+	--> 600, 30, 1000 (should be good adjustements)
+	```
+* **NN Test** commit: nn_working
+  + Test it with ```collect_train_data.py```
+	+ a NN with 18000 batches was trained.
+	+ 10 Games played timing Performance
+	```
+	total_rewards: [-70. -34. -84. -58.] for game 10 total time: 0:00:00.706998
+	I reset the next game:  10
+	The game was started with:
+	Number Games  : 10
+	Players       : ['NN', 'NN', 'NN', 'NN']
+	Expo Constants: [600, 600, 600, 600]
+	depth         : [300, 300, 300, 300]
+	Iteraions     : [100, 100, 100, 100]
+	```
+	+ NN vs MCTS:
+	+ MCTS is much better (cause it knows all cards of the players)
+	+ NN does not know the cards of each player!
+	```
+	total_rewards: [-267.  -42.  -92. -191.] for game 25 total time: 0:07:33.946991
+	I reset the next game:  25
+	The game was started with:
+	Number Games  : 25
+	Players       : ['NN', 'MCTS', 'MCTS', 'NN']
+	Expo Constants: [600, 600, 600, 600]
+	depth         : [300, 300, 300, 300]
+	Iteraions     : [100, 100, 100, 100]
+	```
+	+ **Problem:** NN did not learn constraint!
+	+ In case that it suggest to make an impossible move the first possible move is played!
+	```
+	total_rewards: [-714. -465. -451. -647.] for game 100 total time: 0:00:07.207669
+	I reset the next game:  100
+	The game was started with:
+	Number Games  : 100
+	Players       : ['NN', 'NN', 'NN', 'NN']
+	Expo Constants: [600, 600, 600, 600]
+	depth         : [300, 300, 300, 300]
+	Iterations    : [100, 100, 100, 100]
+	Invalid moves tried to play: 297
+	```
 
 # TODO
 * Done: extend for multiplayer [if you know all cards]
-* Include first round
+* Train a NN:
+	* input as 0,1:  played_cards, cards_on_table, card_options
+	* output: estimated result value of all players, option to play!
+	* Train such a network (to achieve faster moves!) see [here](https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html)
+
 * Do Graphics pygame
 * Extend for multiplayer (you do not know the options of the other players -> imperfect information game!)
 * do tests for evaluation on hyperparams (n_iter, exploration_const, depth)
@@ -110,3 +203,8 @@ Vierter Spieler 81 mögliche Zustände
 das ganze nochmal mal 4 wenn ein anderer Spieler gewinnt also 5184 Zustände.
 
 3. Zug:
+
+
+Other Card Games:
++ Hearts: http://fse.studenttheses.ub.rug.nl/15440/1/Bachelor_Thesis_-_Maxiem_Wagen_1.pdf
++ RI Book: https://web.stanford.edu/class/psych209/Readings/SuttonBartoIPRLBook2ndEd.pdf

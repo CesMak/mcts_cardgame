@@ -120,10 +120,10 @@ class player(object):
 			options_list[self.getCardIndex(card)] = 1
 		return options_list
 
-	def getBinaryHand(self):
+	def getBinaryHand(self, input_cards):
 		#return hand state as 0..1...0..1 sorted BGRY 1....15
 		hand_list = [0]*60
-		for card in self.hand:
+		for card in input_cards:
 			hand_list[self.getCardIndex(card)] = 1
 		return hand_list
 
@@ -261,7 +261,7 @@ class player(object):
 		self.offhand.append(stich)
 
 class game(object):
-	def __init__(self, names_player, ai_player= ["RANDOM", "RANDOM"]):
+	def __init__(self, names_player, ai_player= ["RANDOM", "RANDOM"], expo_constant=[None, None], depths=[None], iterations=[0]):
 		self.names_player      = names_player
 		self.nu_players        = len(self.names_player)
 		self.current_round     = 0
@@ -277,6 +277,10 @@ class game(object):
 		self.rewards           = np.zeros((self.nu_players,))
 		self.shifting_phase    = 0 # counts to nu_player -> in this case shifting phase is finished!
 		self.nu_shift_cards    = 2 # shift 2 cards!
+		# ai player adjustements:
+		self.expo_constant     = expo_constant
+		self.depths            = depths
+		self.iterations        = iterations
 		myDeck = deck()
 		myDeck.shuffle()
 		self.total_rounds      = int(len(myDeck.cards)/self.nu_players)
@@ -299,6 +303,7 @@ class game(object):
 		myDeck.shuffle()
 		self.nu_games_played +=1
 
+		self.shifting_phase    = 0
 		self.players           = []  # stores players object
 		self.on_table_cards    = []  # stores card on the table
 		self.played_cards      = []  # of one game # see also in players offhand!
@@ -408,6 +413,19 @@ class game(object):
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor())
 		return self.active_player, self.neuralNetworkInputs[self.active_player].reshape(1, 180), self.convertAvailableActions(play_options).reshape(1, 60)
+
+	def getBinaryStateFirstCard(self, playeridx, action):
+		hand   = self.players[playeridx].getBinaryHand(self.players[playeridx].hand)
+		actions = [self.players[playeridx].hand[action[0]], self.players[playeridx].hand[action[1]]]
+		action_output = self.players[playeridx].getBinaryHand(actions)
+		return [hand]+[action_output]
+
+	def getBinaryState(self, playeridx, action_output, bestq):
+		bin_options   = self.players[playeridx].getBinaryOptions(self.getInColor())
+		bin_on_table  = self.players[playeridx].getBinaryHand(self.on_table_cards)
+		bin_played    = self.players[playeridx].getBinaryHand(self.played_cards)
+		action_output = self.players[playeridx].getBinaryHand([self.players[playeridx].hand[action_output]])
+		return [bin_options+bin_on_table+bin_played]+[action_output+[round(bestq, 2)]]
 
 	def getPlayerState(self, playeridx):
 		return [self.players[playeridx].hand, self.on_table_cards, self.played_cards]
