@@ -11,7 +11,7 @@ import tkinter
 # https://www.kaggle.com/danieldagnino/training-a-classifier-with-pytorch
 
 class my_model(nn.Module):
-    def __init__(self,n_in=180, n_hidden=30, n_out=60):
+    def __init__(self,n_in=180, n_hidden=60, n_out=60):
         super(my_model,self).__init__()
         self.n_in  = n_in
         self.n_out = n_out
@@ -32,7 +32,7 @@ def test_trained_model(input_vector, e=None):
     #torch.save(model.state_dict(), PATH)
 
     # testing:
-    input_vector = torch.tensor(input_vector[0]).float()
+    input_vector = torch.tensor(input_vector).float()
     #print(input_vector)
     #print(input_vector.shape)
     net = my_model()
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     model = my_model()
     print("Learnable params:\n,", list(model.parameters()))
     criterium = nn.NLLLoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.1,weight_decay=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.1, weight_decay=1e-4)
 
     # Taining.
     loss_values = []
@@ -94,6 +94,7 @@ if __name__ == '__main__':
 
         # print statistics
         running_loss += loss.item()
+        print(loss.item())
         if k % 100 == 99:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                   (epoch + 1, k + 1, running_loss / 100 ))
