@@ -26,9 +26,9 @@ class my_model(nn.Module):
         x = self.logprob(x)
         return x
 
-def testing(input_vector):
+def test_trained_model(input_vector, e=None):
     #print(input_vector)
-    PATH = 'network/test.pth'
+    PATH = 'network/abc.pth'
     #torch.save(model.state_dict(), PATH)
 
     # testing:
@@ -105,7 +105,10 @@ if __name__ == '__main__':
         optimizer.step()
 
     print(loss_values)
-
+    # Save the results here!
+    PATH = 'abc.pth'
+    torch.save(model.state_dict(), PATH)
+    print("I saved your model params to", PATH)
 
     plt.plot(loss_values)
     plt.show()

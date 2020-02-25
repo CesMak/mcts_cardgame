@@ -22,7 +22,7 @@ class MyDataSet(Dataset):
         self.samples = []
         with open(data_root,"r") as f:
             self.samples = [ [ast.literal_eval(ast.literal_eval(elem)[0]), ast.literal_eval(ast.literal_eval(elem)[1])] for elem in f.read().split('\n') if elem]
-        print(len(self.samples)) # ca. 18000
+        print("Number of samples:", len(self.samples))
 
     def __len__(self):
         return len(self.samples)
@@ -31,28 +31,52 @@ class MyDataSet(Dataset):
         # Function that returns one input and one output (label)
         # as one dim output use:
         # torch.Tensor(self.samples[idx][0]), torch.Tensor([self.samples[idx][1]].index(1))
-        return torch.Tensor(self.samples[idx][0]), torch.Tensor([self.samples[idx][1]])
+        return torch.Tensor(self.samples[idx][0]), torch.Tensor([self.samples[idx][1].index(1)])
 
 class my_model(nn.Module):
     '''
     '''
-    def __init__(self, n_in=180, n_hidden=1, n_out=60):
+    def __init__(self, n_in=180, n_middle=120*8, n_out=60):
         super(my_model, self).__init__()
         self.n_in  = n_in
         self.n_out = n_out
+        self.n_middle = n_middle
 
-        self.fc1 = nn.Linear(self.n_in, 120)
+        self.fc1 = nn.Linear(self.n_in, self.n_middle)
         # TODO
         # insert fully con layer here direclty connect
         # hand with output
         self.relu1 = nn.ReLU(inplace=True)
-        self.fc2 = nn.Linear(120, self.n_out)
+        self.fc2 = nn.Linear(self.n_middle, self.n_out)
+        self.logprob = nn.LogSoftmax(dim=0)
 
     def forward(self, x):
         x = self.fc1(x)
         x = self.relu1(x)
         x = self.fc2(x)
+        x = self.logprob(x)
         return x
+
+def test_trained_model(input_vector, a=None):
+    PATH = 'test23.pth'
+    input_vector = torch.tensor(input_vector).float()
+    print(input_vector)
+    net = my_model()
+    net.load_state_dict(torch.load(PATH))
+    outputs = net(input_vector)
+    print("\nNow you should get the class probabilities of these outputs")
+    #print(input_vector.shape)
+    #print(outputs.shape)
+    print(outputs)
+    _, predicted = torch.max((outputs), 0)
+    print(predicted)
+    return predicted
+    # predictions = torch.tensor([outputs[i] for i in available_inputs])
+    # max_val, idx = torch.max(predictions, 0)
+    # print("Possible:", available_inputs)
+    # print("Q-Values:", torch.round(predictions * 10**2) / (10**2))
+    # print("Best: q :", max_val, available_inputs[idx])
+    #return available_inputs[idx]
 
 if __name__ == '__main__':
     from torch.utils.data import DataLoader
@@ -62,8 +86,9 @@ if __name__ == '__main__':
 
     model = my_model()
 
-    criterium = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+    criterium = nn.CrossEntropyLoss() #nn.NLLLoss()
+    # or use SGD
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.1, weight_decay=1e-4)
 
     # Taining.
     loss_values = []
@@ -71,24 +96,23 @@ if __name__ == '__main__':
     epoch        = 0
 
     for k, (data, target) in enumerate(my_loader):
-
-        data   = Variable(data,          requires_grad=False) # input
-        target = Variable(target.long(), requires_grad=False) # output
-
-        #squeeze the target here?!
-        # s your target has a channel dimension of 1, which is not needed using nn.CrossEntropyLoss or nn.NLLLoss.
-        #target = target.squeeze(1)
-        #TODO recast target  one hot to single!
-
         # Set gradient to 0.
         optimizer.zero_grad()
 
-        # Feed forward.
-        pred = model(data)
-        print(pred.shape, target.shape) # torch.Size([1, 60]) torch.Size([1, 1, 61])
+        # Get Data: x=data (inputs), y=target (outpus, labels)
+        data   = Variable(data,          requires_grad=False) # input
+        target = Variable(target.long(), requires_grad=False) # output
 
-        #ValueError: Expected input batch_size (1) to match target batch_size (61).
-        # Fails:
+        # Outputs: For CrossEntropyLoss you need to have target.shape = [nBatch]
+        #recast target one hot to single!
+        #dummy, integer_class_batch = target.max(dim = 1)
+
+        # Feed forward.  should be: pred.shape = [nBatch, model.n_out]
+        pred = model(data)
+        #print("Target shape:", target.shape, "data shape", data.shape)
+        #print("Pred shape: ([nBatch, 60])", pred.shape)
+        #print("target as int:", integer_class_batch.shape)
+
         loss = criterium(pred, target.view(-1))
 
         # Gradient calculation.
@@ -96,7 +120,7 @@ if __name__ == '__main__':
 
         # print statistics
         running_loss += loss.item()
-        if k % 100 == 99:    # print every 2000 mini-batches
+        if k % 100 == 99:    # print every 100 mini-batches
             print('[%d, %5d] loss: %.3f' %
                   (epoch + 1, k + 1, running_loss / 100 ))
             loss_values.append(running_loss / 100 )
@@ -104,22 +128,16 @@ if __name__ == '__main__':
 
         # Model weight modification based on the optimizer.
         optimizer.step()
+    print(loss_values)
 
-def testing(input_vector):
-    #print(input_vector)
-    PATH = 'network/test.pth'
-    #torch.save(model.state_dict(), PATH)
+    # Save the results here!
+    PATH = 'test23.pth'
+    torch.save(model.state_dict(), PATH)
+    print("I saved your model params to", PATH)
 
-    # testing:
-    input_vector = torch.tensor(input_vector[0]).float()
-    print(input_vector)
-    print(input_vector.shape)
-    net = my_model()
-    net.load_state_dict(torch.load(PATH))
-    outputs = net(input_vector)
-    print(outputs.shape) # 60x1 von 0-59 (Index Zahlen)
-    print("Now you should get the class probabilities of these outputs")
-    print(outputs)
-    a, predicted = torch.max(outputs, 1)
-    print(a)
-    print("", predicted)
+    # Test for one batch input 180x1
+    test_trained_model(data[1])
+
+# So you are training your network to output the probability of of each
+# of the 60 moves being the right move. The simplest rule will be to
+# play the move that has the largest predicted probability of being right.

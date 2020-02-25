@@ -6,7 +6,8 @@ import time
 import stdout  # for silent print
 
 #For NN:
-from network.data_loader_test import testing
+from network.data_loader_test import test_trained_model
+#from final_network import test_trained_model
 
 #Collect Data here! (Input State, Output reward)
 # Do it directly here or just train on best moves always?
@@ -14,10 +15,10 @@ from network.data_loader_test import testing
 #getPlayerState(self, playeridx):
 # TODO: --> Parameter Searching !
 
-num_games      = 100
+num_games      = 1
 start_time = datetime.datetime.now()
-my_game  = game(["Tim", "Bob", "Frank", "Lea"], ai_player = ["NN", "NN", "NN", "NN"],
-            expo_constant=[600, 600, 600, 600], depths=[300, 300, 300, 300], iterations=[100, 100, 100, 100])
+my_game  = game(["Tim", "Bob", "Frank", "Lea"], ai_player = ["NN", "RANDOM", "NN", "NN"],
+            expo_constant=[600, 600, 600, 600], depths=[300, 300, 300, 300], iterations=[1, 1000, 1000, 1000])
 total_rewards  = np.zeros((my_game.nu_players,))
 nu_errors      = 0 # errors of NN tried to play an invalid move
 
@@ -63,9 +64,13 @@ for i in range(0, num_games):
             else:
                 # Numbers 0 and -1.0 are not considered!
                 line = (my_game.getBinaryState(current_player, 0, -1.0))
-                action = testing(line)# action from 0-60 -> transform to players action!
+                available_actions = [my_game.players[current_player].indexToAbsolute(i) for i in my_game.getValidOptions(current_player)]
+
+                action = test_trained_model(line[0], available_actions)# action from 0-60 -> transform to players action!
                 card   = my_game.players[current_player].getIndexOfCard(action)
+                print("I want to play now", card)
                 action = my_game.players[current_player].specificIndexHand(card)
+                print(action)
 
         else: # In case of a human:
             if shift_round:
@@ -91,17 +96,23 @@ for i in range(0, num_games):
                 action = is_allowed_list_idx[0]
             print("I play:", my_game.players[current_player].hand[action])
 
-            #Use action and bestq as outputs,  get state of player and write to file!
-            # line = (my_game.getBinaryState(current_player, action, best_q))
-            # nn_time   = datetime.datetime.now()
-            # action_nn = testing(line)
-            # nn_end    = datetime.datetime.now()
-            # #print("NN", action_nn ,"which is card", my_game.players[current_player].getIndexOfCard(action_nn), "Time NN",nn_end-nn_time )
-            # line_str = [''.join(str(x)) for x in line]
-            # # Open a file with access mode 'a'
-            # file_object = open('actions__.txt', 'a')
-            # file_object.write(str(line_str)+"\n")
-            # file_object.close()
+            if "MCTS" in my_game.ai_player[current_player]:
+                #Use action and bestq as outputs,  get state of player and write to file!
+                line = (my_game.getBinaryState(current_player, action, best_q))
+                nn_time   = datetime.datetime.now()
+                # VORSICHT das kann so nicht funktionieren,
+                # welche action genommen wird, wird nicht berücksichtigt!!!!
+
+                available_actions = [my_game.players[current_player].indexToAbsolute(i) for i in my_game.getValidOptions(current_player)]
+
+                action_nn =  test_trained_model(line[0],  available_actions)
+                nn_end    = datetime.datetime.now()
+                print("NN", action_nn ,"which is card", my_game.players[current_player].getIndexOfCard(action_nn), "Time NN",nn_end-nn_time )
+                # line_str = [''.join(str(x)) for x in line]
+                # # Open a file with access mode 'a'
+                file_object = open('actions_with_nn_sampled.txt', 'a')
+                file_object.write(str(line_str)+"\n")
+                file_object.close()
 
         rewards, round_finished  = my_game.step_idx(action, auto_shift=False)
         if rewards is not None:

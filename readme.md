@@ -139,6 +139,19 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 	depth         : [300, 300, 300, 300]
 	Iteraions     : [100, 100, 100, 100]
 	```
+	+ NN vs Random:
+		```
+		total_rewards: [-301. -637. -533. -805.] for game 100 total time: 0:00:04.057822
+		I reset the next game:  100
+		The game was started with:
+		Number Games  : 100
+		Players       : ['NN', 'RANDOM', 'NN', 'RANDOM']
+		Expo Constants: [600, 600, 600, 600]
+		depth         : [300, 300, 300, 300]
+		Iterations    : [1000, 1000, 1000, 1000]
+		Invalid moves tried to play: 186
+	```
+
 	+ **Problem:** NN did not learn constraint!
 	+ In case that it suggest to make an impossible move the first possible move is played!
 	```
@@ -159,16 +172,17 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 	* input as 0,1:  played_cards, cards_on_table, card_options
 	* output: estimated result value of all players, option to play!
 	* Train such a network (to achieve faster moves!) see [here](https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html)
+* **Use Google collab to generate data for your NN**
+* Read this first UCT: https://hci.iwr.uni-heidelberg.de/system/files/private/downloads/297868474/report_robert-klassert.pdf
+* Test this one: multiprocessing.Pool here: https://wiseodd.github.io/techblog/2016/06/13/parallel-monte-carlo/
+* See also this good explanation: https://pdfs.semanticscholar.org/fe90/c1f9955ba1f06f5ef26bde100bcc5c7a3327.pdf
+* Or use CUDA or parallel mcts!
 
 * Do Graphics pygame
 * Extend for multiplayer (you do not know the options of the other players -> imperfect information game!)
 * do tests for evaluation on hyperparams (n_iter, exploration_const, depth)
 * Change depth level (such that only x turns are calculated in advance not until the game is finished!)
 
-# Links:
-*	https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
-*	https://github.com/hayoung-kim/mcts-tic-tac-
-* https://www.youtube.com/watch?v=UXW2yZndl7U
 
 # Rules of witches:
 *	Aim:	Have a minimum of minus Points!
@@ -208,3 +222,7 @@ das ganze nochmal mal 4 wenn ein anderer Spieler gewinnt also 5184 Zustände.
 Other Card Games:
 + Hearts: http://fse.studenttheses.ub.rug.nl/15440/1/Bachelor_Thesis_-_Maxiem_Wagen_1.pdf
 + RI Book: https://web.stanford.edu/class/psych209/Readings/SuttonBartoIPRLBook2ndEd.pdf
++ Tetris Reinforcement Learning! https://github.com/hrpan/tetris_mcts
+*	https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
+*	https://github.com/hayoung-kim/mcts-tic-tac-
+* https://www.youtube.com/watch?v=UXW2yZndl7U
