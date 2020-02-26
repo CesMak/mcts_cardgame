@@ -1,10 +1,3 @@
 __pycache__
-actions.txt
-actions__.txt
-first_move.txt
-first_move__.txt
-network/__pycache__
-network/first_move.txt
-network/actions__.txt
-network/test.txt
 mcts_env
+data/*.txt

@@ -63,12 +63,12 @@ class VanilaMCTS(object):
 
 					child_id = node_id + (action,)
 					w = self.tree[child_id]['w']
-					n = self.tree[child_id]['n'] #number of visits
-					total_n = self.total_n # total number of rollouts
+					n = self.tree[child_id]['n']
+					total_n = self.total_n
 					if n == 0:
 						n = 1e-4
 					exploitation_value = w / n
-					exploration_value  = np.sqrt(np.log(total_n)/n)# before np.sqrt(np.log(total_n)/n)
+					exploration_value  = np.sqrt(np.log(total_n)/n)
 					uct_value = exploitation_value + self.exploration_constant * exploration_value
 
 					if uct_value > maximum_uct_value:
@@ -152,8 +152,6 @@ class VanilaMCTS(object):
 		self.game.setState(state+[previous_player])
 
 		while not anybody_win:
-			#TODO do not random steps here! but steps with NN
-			#rewards = self.game.NNStep()
 			rewards = self.game.randomStep()
 			if rewards is not None:
 				anybody_win = True
