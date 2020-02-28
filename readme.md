@@ -154,6 +154,8 @@ Tree consists of state([self.players, self.rewards, self.on_table_cards, self.pl
 		```
 
 # TODO
+* Create EXE!
+* Have a look at TD-Learning!
 * Done: extend for multiplayer [if you know all cards]
 * Train a NN:
 	* input as 0,1:  played_cards, cards_on_table, card_options

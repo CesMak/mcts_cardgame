@@ -6,7 +6,6 @@ import time
 import stdout  # for silent print
 
 #For NN:
-#from network.data_loader_test import testing
 from train import test_trained_model
 
 #Collect Data here! (Input State, Output reward)
@@ -16,18 +15,18 @@ from train import test_trained_model
 # TODO: --> Parameter Searching !
 
 num_games      = 1
-start_time = datetime.datetime.now()
-my_game  = game(["Tim", "Bob", "Frank", "Lea"], ai_player = ["NN", "NN", "NN", "NN"],
-            expo_constant=[600, 600, 600, 600], depths=[300, 300, 300, 300], iterations=[100, 100, 100, 100])
+start_time     = datetime.datetime.now()
+my_game        = game(["Tim", "Bob", "Frank", "Lea"], ai_player = ["NN", "NN", "NN", "NN"],
+                 expo_constant=[600, 600, 600, 600], depths=[300, 300, 300, 300], iterations=[100, 100, 100, 100])
 total_rewards  = np.zeros((my_game.nu_players,))
 nu_errors      = 0 # errors of NN tried to play an invalid move
 
 for i in range(0, num_games):
-    game_end = False
+    game_end       = False
     round_finished = False
-    shift_round = True
-    shift_idx   = 0
-    factor_shift = 1 # factor for shift round only!
+    shift_round    = True
+    shift_idx      = 0
+    factor_shift   = 1 # factor for shift round only!
     state = (my_game.getGameState())
     current_player = my_game.active_player
 
