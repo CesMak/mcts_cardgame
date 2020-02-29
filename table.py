@@ -17,6 +17,7 @@ from train import test_trained_model
 
 #For MCTS:
 from VanilaMCTS import VanilaMCTS
+import stdout  # for silent print
 
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
@@ -227,7 +228,9 @@ class cardTableWidget(QWidget):
             exploration_constant=self.options["expo"][current_player],
             state=state, player=current_player, game=self.my_game)
 
+            stdout.disable()
             action, best_q, depth = mcts.solve()
+            stdout.enable()
             print(best_q, depth, action)
             self.my_game.setState(state+[current_player])
         else:
