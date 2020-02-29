@@ -261,8 +261,8 @@ class player(object):
 		self.offhand.append(stich)
 
 class game(object):
-	def __init__(self, names_player, ai_player= ["RANDOM", "RANDOM"], expo_constant=[None, None], depths=[None], iterations=[0]):
-		self.names_player      = names_player
+	def __init__(self, options_dict):
+		self.names_player      = options_dict["names"]
 		self.nu_players        = len(self.names_player)
 		self.current_round     = 0
 		self.nu_games_played   = 0
@@ -273,14 +273,14 @@ class game(object):
 		self.gameOver          = 0
 		self.neuralNetworkInputs = {}
 		self.game_start_player = self.active_player
-		self.ai_player         = ai_player
+		self.ai_player         = options_dict["type"]
 		self.rewards           = np.zeros((self.nu_players,))
 		self.shifting_phase    = 0 # counts to nu_player -> in this case shifting phase is finished!
 		self.nu_shift_cards    = 2 # shift 2 cards!
 		# ai player adjustements:
-		self.expo_constant     = expo_constant
-		self.depths            = depths
-		self.iterations        = iterations
+		self.expo_constant     = options_dict["expo"]
+		self.depths            = options_dict["depths"]
+		self.iterations        = options_dict["itera"]
 		myDeck = deck()
 		myDeck.shuffle()
 		self.total_rounds      = int(len(myDeck.cards)/self.nu_players)

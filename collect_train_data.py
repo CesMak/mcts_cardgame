@@ -8,6 +8,11 @@ import stdout  # for silent print
 #For NN:
 from train import test_trained_model
 
+#For using the GUI:
+#from game_gui import gui
+
+
+#gui.create_widget()
 #Collect Data here! (Input State, Output reward)
 # Do it directly here or just train on best moves always?
 # Train with rewards at the end of game or?
