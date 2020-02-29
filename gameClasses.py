@@ -231,8 +231,9 @@ class player(object):
 		# return True if the offhand has this card!
 		for stich in self.offhand:
 			for card in stich:
-				if card.color == cardColor and card.value == cardValue:
-					return True
+				if card is not None:
+					if card.color == cardColor and card.value == cardValue:
+						return True
 		return False
 
 	def countResult(self, input_cards):
@@ -243,17 +244,18 @@ class player(object):
 		# input_cards = self.offhand
 		for stich in input_cards:
 			for card in stich:
-				if card.color == "R" and card.value <15 and card.value!=11 and card.value and not self.hasRedEleven():
-					negative_result -=1
-				if card.color == "R" and card.value <15 and card.value!=11 and card.value and self.hasRedEleven():
-					negative_result -=1*2
-				if not self.hasBlueEleven():
-					if card.color == "G" and card.value == 11:
-						negative_result -= 5
-					if card.color == "G" and card.value == 12:
-						negative_result -= 10
-				if card.color == "Y" and card.value == 11:
-					negative_result+=5
+				if card is not None:
+					if card.color == "R" and card.value <15 and card.value!=11 and card.value and not self.hasRedEleven():
+						negative_result -=1
+					if card.color == "R" and card.value <15 and card.value!=11 and card.value and self.hasRedEleven():
+						negative_result -=1*2
+					if not self.hasBlueEleven():
+						if card.color == "G" and card.value == 11:
+							negative_result -= 5
+						if card.color == "G" and card.value == 12:
+							negative_result -= 10
+					if card.color == "Y" and card.value == 11:
+						negative_result+=5
 		return negative_result
 
 	def appendCards(self, stich):
@@ -276,7 +278,7 @@ class game(object):
 		self.ai_player         = options_dict["type"]
 		self.rewards           = np.zeros((self.nu_players,))
 		self.total_rewards     = np.zeros((self.nu_players,))
-		self.shifting_phase    = 0 # counts to nu_player -> in this case shifting phase is finished!
+		self.shifting_phase    = options_dict["shifting_phase"] # counts to nu_player -> in this case shifting phase is finished!
 		self.nu_shift_cards    = 2 # shift 2 cards!
 		# ai player adjustements:
 		self.expo_constant     = options_dict["expo"]
@@ -317,8 +319,9 @@ class game(object):
 		# returns the leading color of the on_table_cards
 		# if only joker are played None is returned
 		for i, card in enumerate(self.on_table_cards):
-			if card.value <15:
-				return card.color
+			if card is not None:
+				if card.value <15:
+					return card.color
 		return None
 
 	def evaluateWinner(self):
@@ -333,7 +336,7 @@ class game(object):
 		if  incolor is not None:
 			for i, card in enumerate(self.on_table_cards):
 				# Note 15 is a Jocker
-				if card.value > highest_value and card.color == incolor and card.value<15:
+				if card is not None and ( card.value > highest_value and card.color == incolor and card.value<15):
 					highest_value = card.value
 					winning_card = card
 					on_table_win_idx = i
@@ -432,16 +435,17 @@ class game(object):
 		return [self.players[playeridx].hand, self.on_table_cards, self.played_cards]
 
 	def getGameState(self):
-		return [self.players, self.rewards, self.on_table_cards, self.played_cards, self.shifting_phase]
+		return [self.players, self.rewards, self.on_table_cards, self.played_cards, self.shifting_phase, self.total_rewards]
 
 	def setState(self, game_state):
-		[players, rewards, on_table_cards, played_cards, shifting_phase, active_player] = game_state
+		[players, rewards, on_table_cards, played_cards, shifting_phase, total_rewards, active_player] = game_state
 		self.active_player  = active_player
 		self.on_table_cards = on_table_cards
 		self.players        = players
 		self.played_cards   = played_cards
 		self.rewards        = rewards
 		self.shifting_phase = shifting_phase
+		self.total_rewards  = total_rewards
 
 	def isGameFinished(self):
 		cards = 0
@@ -553,7 +557,7 @@ class game(object):
 		'No shifting phase allowed here - happens in first call of step_idx'
 		incolor = None
 		# play the card:
-		if len(self.on_table_cards)>0:
+		if len(self.on_table_cards)>0 and self.on_table_cards[0] is not None:
 			incolor = self.on_table_cards[0].color
 		played_card = self.players[self.active_player].playRandomCard(incolor)
 		self.on_table_cards.append(played_card)

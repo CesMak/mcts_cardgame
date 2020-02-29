@@ -12,6 +12,12 @@ from prettyjson import prettyjson
 
 from gameClasses import card, deck, player, game
 
+#For NN:
+from train import test_trained_model
+
+#For MCTS:
+from VanilaMCTS import VanilaMCTS
+
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
     def __init__(self, parent=None):
@@ -136,12 +142,10 @@ class cardTableWidget(QWidget):
         '''
         Read in json, modify, write it read it in as dict again!
         '''
-        print(self.options_file_path)
         with open(self.options_file_path) as json_file:
             test = json.load(json_file)
             txt = prettyjson(test)
         text = easygui.textbox("Contents of file:\t"+self.options_file_path, "Adjust your options", txt)
-        print(text)
         dict = (json.loads(text))
         with open(self.options_file_path, 'w') as outfile:
             json.dump(dict, outfile)
@@ -203,11 +207,36 @@ class cardTableWidget(QWidget):
             self.deal_cards(offhand_cards, i)
             i +=1
         self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
+        if self.options["nu_games"] > self.my_game.nu_games_played+1:
+            self.nextRound_clicked()
 
+    def selectAction(self):
+        # TODO incooperate shift
+        current_player = self.my_game.active_player
+        if "RANDOM" in self.my_game.ai_player[current_player]:
+            action = self.my_game.getRandomOption_()
+        elif "NN"   in self.my_game.ai_player[current_player]:
+            line = (self.my_game.getBinaryState(current_player, 0, -1.0))
+            action = test_trained_model(line, self.options["model_path_for_NN"])# action from 0-60 -> transform to players action!
+            card   = self.my_game.players[current_player].getIndexOfCard(action)
+            action = self.my_game.players[current_player].specificIndexHand(card)
+        elif "MCTS" in self.my_game.ai_player[current_player]:
+            state = self.my_game.getGameState()
+            mcts = VanilaMCTS(n_iterations=self.options["itera"][current_player],
+            depth=self.options["depths"][current_player],
+            exploration_constant=self.options["expo"][current_player],
+            state=state, player=current_player, game=self.my_game)
+
+            action, best_q, depth = mcts.solve()
+            print(best_q, depth, action)
+            self.my_game.setState(state+[current_player])
+        else:
+            action = self.my_game.getRandomOption_()
+        return action
 
     def playUntilHuman(self):
         while not "Human" in self.my_game.ai_player[self.my_game.active_player]:
-            action = self.my_game.getRandomOption_()
+            action = self.selectAction()
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
             rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
@@ -257,8 +286,10 @@ class cardTableWidget(QWidget):
 
     def findGraphicsCardItem_(self, my_card):
         for i in self.getCardsList():
+            print(i, my_card)
             if i.card == my_card:
                 return i
+
     def findGraphicsCardItem(self, action_idx, player_idx):
         try:
             card_to_play = self.my_game.players[player_idx].hand[action_idx]

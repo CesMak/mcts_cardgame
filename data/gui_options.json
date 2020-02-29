@@ -1,1 +1,1 @@
-{"names": ["Tim", "Bob", "Frank", "Lea"], "type": ["NN", "Human", "NN", "NN"], "expo": [600, 600, 600, 600], "depths": [300, 300, 300, 300], "itera": [100, 100, 100, 100], "faceDown": [true, false, true, true], "sleepTime": 0.1}
+{"names": ["Laura", "Alfons", "Frank", "Lea"], "type": ["NN", "MCTS", "RANDOM", "NN"], "expo": [600, 600, 600, 600], "depths": [300, 300, 300, 300], "itera": [1000, 1000, 1000, 1000], "faceDown": [false, false, false, false], "sleepTime": 0.01, "model_path_for_NN": "data/test.pth", "nu_games": 10, "shifting_phase": 20}
