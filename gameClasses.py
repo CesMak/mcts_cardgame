@@ -275,6 +275,7 @@ class game(object):
 		self.game_start_player = self.active_player
 		self.ai_player         = options_dict["type"]
 		self.rewards           = np.zeros((self.nu_players,))
+		self.total_rewards     = np.zeros((self.nu_players,))
 		self.shifting_phase    = 0 # counts to nu_player -> in this case shifting phase is finished!
 		self.nu_shift_cards    = 2 # shift 2 cards!
 		# ai player adjustements:
@@ -518,6 +519,7 @@ class game(object):
 		finished = self.isGameFinished()
 		if finished is not None:
 			self.assignRewards()
+			self.total_rewards += self.rewards
 			return self.rewards, True
 		else:
 			return None, round_finished

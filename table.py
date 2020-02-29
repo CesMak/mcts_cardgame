@@ -6,6 +6,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui  import *
 from PyQt5 import QtSvg
 import time
+import easygui
+import json
+from prettyjson import prettyjson
 
 from gameClasses import card, deck, player, game
 
@@ -81,6 +84,7 @@ class cardTableWidget(QWidget):
         self.playersHandsPos = [(75, 50, 0), (210, 50, 180), (680, 50, 0), (210, 385, 0)] #(x,y,angle)
         self.defHandSpacing = 24
         self.midCards  = []
+        self.options_file_path =  "data/gui_options.json"
 
         # Card fields
         pen = QPen()
@@ -105,6 +109,7 @@ class cardTableWidget(QWidget):
         self.play_2_state  = self.addPlayerLabel(200+120, 250, "")
         self.play_3_state  = self.addPlayerLabel(200+120*2, 250, "")
         self.play_4_state  = self.addPlayerLabel(200+120*3, 250, "")
+        self.game_indicator= self.addPlayerLabel(700, 5, "Game: ")
 
         playbtn = QPushButton('Start', self)
         playbtn.resize(50, 32)
@@ -114,12 +119,12 @@ class cardTableWidget(QWidget):
         nextRound = QPushButton('nextRound', self)
         nextRound.resize(80, 32)
         nextRound.move(65, 10)
-        #nextRound.clicked.connect(self.start_clicked)
+        nextRound.clicked.connect(self.nextRound_clicked)
 
         options = QPushButton('Options', self)
         options.resize(80, 32)
         options.move(150, 10)
-        #options.clicked.connect(self.start_clicked)
+        options.clicked.connect(self.options_clicked)
 
         self.scene.addWidget(playbtn)
         self.scene.addWidget(nextRound)
@@ -127,23 +132,42 @@ class cardTableWidget(QWidget):
 
         self.my_game = None
 
+    def options_clicked(self):
+        '''
+        Read in json, modify, write it read it in as dict again!
+        '''
+        print(self.options_file_path)
+        with open(self.options_file_path) as json_file:
+            test = json.load(json_file)
+            txt = prettyjson(test)
+        text = easygui.textbox("Contents of file:\t"+self.options_file_path, "Adjust your options", txt)
+        print(text)
+        dict = (json.loads(text))
+        with open(self.options_file_path, 'w') as outfile:
+            json.dump(dict, outfile)
+
+    def nextRound_clicked(self):
+        '''
+        Reset the game with the same options as before!
+        '''
+        if self.my_game is not None:
+            self.my_game.reset_game()
+            self.runGame()
+        else:
+            print("Error, click start first!")
+
     def start_clicked(self):
         #1. Load Options
-        # options for class game and for this gui handling (e.g. faceDown)
-        self.options = {}
-        self.options["names"] = ["Tim", "Bob", "Frank", "Lea"]
-        self.options["type"]  = ["NN", "NN", "NN", "NN"]
-        self.options["expo"]  = [600, 600, 600, 600]
-        self.options["depths"]= [300, 300, 300, 300]
-        self.options["itera"]     = [100, 100, 100, 100]
-        self.options["faceDown"]  = [True, True, True, False]
-        self.options["sleepTime"] = 0.1
-
-        # remove all cards which were there from last game.
-        self.removeAll()
+        with open(self.options_file_path) as json_file:
+            self.options = json.load(json_file)
 
         #2. Create Game:
         self.my_game     = game(self.options)
+        self.runGame()
+
+    def runGame(self):
+        # remove all cards which were there from last game.
+        self.removeAll()
 
         #3. Deal Cards:
         for i in range(len(self.my_game.players)):
@@ -152,6 +176,7 @@ class cardTableWidget(QWidget):
 
         # 4. Setup Names:
         self.setNames()
+        self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
 
         #5. Play until human:
         self.playUntilHuman()
@@ -170,13 +195,15 @@ class cardTableWidget(QWidget):
     def showResult(self, rewards):
         i = 0
         for f, b in zip([self.card1_label, self.card2_label, self.card3_label, self.card4_label], [self.play_1_state, self.play_2_state, self.play_3_state, self.play_4_state]):
-            self.changePlayerName(f, self.my_game.names_player[i], highlight=0)
-            self.changePlayerName(b,  str(int(rewards[i])), highlight=0)
+            self.changePlayerName(f, self.my_game.names_player[i]+" ("+self.my_game.ai_player[i]+")", highlight=0)
+            self.changePlayerName(b,  str(int(rewards[i]))+" ["+str(int(self.my_game.total_rewards[i]))+"]", highlight=0)
 
             # print offhand cards:
             offhand_cards = [item for sublist in  self.my_game.players[i].offhand for item in sublist]
             self.deal_cards(offhand_cards, i)
             i +=1
+        self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
+
 
     def playUntilHuman(self):
         while not "Human" in self.my_game.ai_player[self.my_game.active_player]:
@@ -269,13 +296,15 @@ class cardTableWidget(QWidget):
             text_item.setDefaultTextColor(Qt.black)
 
     def mousePressEvent(self, event):
-        # check if item is a CardGraphicsItem
-        p = event.pos()
-        p -= QPoint(10, 10) #correction to mouse click. not sure why this happen
-        itemAt = self.view.itemAt(p)
-        if isinstance(itemAt, CardGraphicsItem):
-            self.cardPressed(itemAt)
-
+        try:
+            # check if item is a CardGraphicsItem
+            p = event.pos()
+            p -= QPoint(10, 10) #correction to mouse click. not sure why this happen
+            itemAt = self.view.itemAt(p)
+            if isinstance(itemAt, CardGraphicsItem):
+                self.cardPressed(itemAt)
+        except Exception as e:
+            print(e)
         # print("All items at pos: ", end="")
         # print(self.view.items(p))
         # print("view.mapToScene: ",end="")
@@ -296,6 +325,10 @@ class cardTableWidget(QWidget):
             print("Active Player", self.my_game.active_player)
             print("before round finished!")
             rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+            if rewards is not None:
+                self.checkFinished()
+                self.showResult(rewards)
+                return
             self.checkFinished()
             print("Active Player", self.my_game.active_player)
             print("Human Card Played: ", card)
