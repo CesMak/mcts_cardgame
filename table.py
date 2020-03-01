@@ -18,6 +18,7 @@ from train import test_trained_model
 #For MCTS:
 from VanilaMCTS import VanilaMCTS
 import stdout  # for silent print
+import pickle
 
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
@@ -139,6 +140,9 @@ class cardTableWidget(QWidget):
 
         self.my_game = None
 
+        # Testing tree:
+        self.my_tree = None
+
     def options_clicked(self):
         '''
         Read in json, modify, write it read it in as dict again!
@@ -226,19 +230,41 @@ class cardTableWidget(QWidget):
             mcts = VanilaMCTS(n_iterations=self.options["itera"][current_player],
             depth=self.options["depths"][current_player],
             exploration_constant=self.options["expo"][current_player],
-            state=state, player=current_player, game=self.my_game)
-
+            state=state, player=current_player, game=self.my_game, tree = self.my_tree)
             stdout.disable()
-            action, best_q, depth = mcts.solve()
+            action, best_q, depth, best_tree = mcts.solve()
             stdout.enable()
-            print(best_q, depth, action)
+            print("bestq:", best_q, "depth:", depth, "action:", action)
+
+            ## TODO Reuse this tree is very complex:!!!
+            # self.my_tree = mcts.tree
+            # #print(self.my_tree)
+            # print("\n\n\n\n\n\n BEST TREE", (0,)+(action, ))
+            # print(best_tree, "\n\n")
+            #
+            # # get all subtrees with parent!
+            # new_tree = {}
+            # for dict in self.my_tree:
+            #     #print(dict, type(dict), (self.my_tree[dict]["parent"]))
+            #     if (self.my_tree[dict]["parent"]) == (0,)+(action, ):
+            #         new_tree[(0,)+(action, )] = self.my_tree[dict]
+            #         new_tree[(0,)+(action, )]["parent"]        = (0,)
+            # new_tree[(0,)] = best_tree
+            # new_tree[(0,)]["parent"] = (0,)
+            # print(new_tree)
+            # # for i in range(0, 10):
+            # #     print("Subtree:", (0,)+(action,)+(i,))
+            # #     print(self.my_tree[(0,)+(action,)+(i,)])
+            #
+            # print(eee)
+
             self.my_game.setState(state+[current_player])
         else:
             action = self.my_game.getRandomOption_()
         return action
 
     def playUntilHuman(self):
-        while not "Human" in self.my_game.ai_player[self.my_game.active_player]:
+        while not "HUMAN" in self.my_game.ai_player[self.my_game.active_player]:
             action = self.selectAction()
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
@@ -351,7 +377,8 @@ class cardTableWidget(QWidget):
             print("Cannot get action. Card does not belong to this player!")
             return
         is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
-        if action not in is_allowed_list_idx:
+        incolor =self.my_game.getInColor()
+        if action not in is_allowed_list_idx and incolor is not None:
             print("I cannot play", card, " not allowed!")
             return
         card_played = self.playCard(card, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])

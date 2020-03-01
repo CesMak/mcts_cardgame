@@ -470,10 +470,7 @@ class game(object):
 		return options
 
 	def getValidOptions(self, player):
-		incolor = None
-		if len(self.on_table_cards)>0:
-			incolor = self.on_table_cards[0].color
-		options =  self.players[player].getOptions(incolor)
+		options =  self.players[player].getOptions(self.getInColor())
 		action_idx_list = []
 		for option in options:
 			action_idx, card = option

@@ -231,7 +231,8 @@ class VanilaMCTS(object):
 			print('best_q = %.2f' % (best_q))
 			print('searching depth = %d' % (depth_searched))
 			#print(self.tree)
-			return best_action, best_q, depth_searched
+			print((0,)+(best_action,))
+			return best_action, best_q, depth_searched, self.tree[(0,)+(best_action,)]
 
 
 '''
