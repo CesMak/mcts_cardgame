@@ -104,16 +104,16 @@ def save_model(path, start_time):
 def test_trained_model(input_vector, path):
     # input vector: as list 180x1 0...1...0...1
     input_vector = torch.tensor(input_vector[0]).float()
-    print("Shape of Vector:\t"+str(input_vector.shape))
+    #print("Shape of Vector:\t"+str(input_vector.shape))
 
     net = my_model()
     net.load_state_dict(torch.load(path))
     outputs = net(input_vector)
-    print("Shape of Outpus:\t"+str(outputs.shape))
-    print("Outputs:")
-    print(outputs)
+    #print("Shape of Outpus:\t"+str(outputs.shape))
+    #print("Outputs:")
+    #print(outputs)
     a, predicted = torch.max(outputs/100, 0)
-    print(predicted)
+    #print(predicted)
     return predicted
 
 

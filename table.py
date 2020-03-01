@@ -19,6 +19,7 @@ from train import test_trained_model
 from VanilaMCTS import VanilaMCTS
 import stdout  # for silent print
 import pickle
+from copy import deepcopy
 
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
@@ -143,6 +144,9 @@ class cardTableWidget(QWidget):
         # Testing tree:
         self.my_tree = None
 
+        # Storing game_play
+        self.game_play = {}
+
     def options_clicked(self):
         '''
         Read in json, modify, write it read it in as dict again!
@@ -171,8 +175,29 @@ class cardTableWidget(QWidget):
             self.options = json.load(json_file)
 
         #2. Create Game:
-        self.my_game     = game(self.options)
-        self.runGame()
+        if self.options["automatic_mode"]:
+            with open(self.options["game_play_path"], 'rb') as f:
+                self.game_play = pickle.load(f)
+            self.automatic_mode()
+        else:
+            self.my_game     = game(self.options)
+            self.runGame()
+
+    def automatic_mode(self):
+        print("inside automatic mode")
+        for i in range(4):
+            self.deal_cards(self.game_play["cards_player_"+str(i)], i, fdown=False)
+        j = 0
+        for player, action  in self.game_play["moves"]:
+            if (j==4):
+                j=0
+            active_player_cards = self.game_play["cards_player_"+str(player)]
+            item = self.findGraphicsCardItem_(active_player_cards[action])
+            self.playCard(item, player, j, self.options["names"][player])
+            j +=1
+            del self.game_play["cards_player_"+str(player)][action]
+            self.checkFinished()
+
 
     def runGame(self):
         # remove all cards which were there from last game.
@@ -191,15 +216,19 @@ class cardTableWidget(QWidget):
         self.playUntilHuman()
 
     def getHighlight(self, playeridx):
-        if playeridx == self.my_game.active_player:
-            return 1
-        return 0
+        try:
+            if playeridx == self.my_game.active_player:
+                return 1
+            else:
+                return 0
+        except:
+            return 0
 
     def setNames(self):
-        self.changePlayerName(self.player1_label,  self.my_game.names_player[0], highlight=self.getHighlight(0))
-        self.changePlayerName(self.player2_label,  self.my_game.names_player[1], highlight=self.getHighlight(1))
-        self.changePlayerName(self.player3_label,  self.my_game.names_player[2], highlight=self.getHighlight(2))
-        self.changePlayerName(self.player4_label,  self.my_game.names_player[3], highlight=self.getHighlight(3))
+        self.changePlayerName(self.player1_label,  self.options["names"][0], highlight=self.getHighlight(0))
+        self.changePlayerName(self.player2_label,  self.options["names"][1], highlight=self.getHighlight(1))
+        self.changePlayerName(self.player3_label,  self.options["names"][2], highlight=self.getHighlight(2))
+        self.changePlayerName(self.player4_label,  self.options["names"][3], highlight=self.getHighlight(3))
 
     def showResult(self, rewards):
         i = 0
@@ -234,14 +263,22 @@ class cardTableWidget(QWidget):
             stdout.disable()
             action, best_q, depth, best_tree = mcts.solve()
             stdout.enable()
-            print("bestq:", best_q, "depth:", depth, "action:", action)
+            self.my_game.setState(state+[current_player])
+            print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
+
+            if self.options["mcts_save_actions"]:
+                line = (self.my_game.getBinaryState(current_player, action, best_q))
+                line_str = [''.join(str(x)) for x in line]
+                file_object = open(self.options["mcts_actions_path"], 'a')
+                file_object.write(str(line_str)+"\n")
+                file_object.close()
 
             ## TODO Reuse this tree is very complex:!!!
             # self.my_tree = mcts.tree
             # #print(self.my_tree)
             # print("\n\n\n\n\n\n BEST TREE", (0,)+(action, ))
             # print(best_tree, "\n\n")
-            #
+
             # # get all subtrees with parent!
             # new_tree = {}
             # for dict in self.my_tree:
@@ -258,17 +295,31 @@ class cardTableWidget(QWidget):
             #
             # print(eee)
 
-            self.my_game.setState(state+[current_player])
         else:
             action = self.my_game.getRandomOption_()
         return action
+
+    def playVirtualCard(self, action):
+        current_player = deepcopy(self.my_game.active_player)
+        if self.options["save_game_play"] and len(self.my_game.played_cards) == 0:
+            self.game_play = {}
+            self.game_play["moves"] = []
+            for i, player in enumerate(self.my_game.players):
+                self.game_play["cards_player_"+str(i)] = deepcopy(player.hand)
+        rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+        if self.options["save_game_play"]:
+            self.game_play["moves"].append([current_player, action])
+            if len(self.my_game.played_cards) == 60:
+                with open(self.options["game_play_path"], 'wb') as f:
+                    pickle.dump(self.game_play, f)
+        return rewards, round_finished
 
     def playUntilHuman(self):
         while not "HUMAN" in self.my_game.ai_player[self.my_game.active_player]:
             action = self.selectAction()
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+            rewards, round_finished = self.playVirtualCard(action)
             if rewards is not None:
                 self.checkFinished()
                 self.showResult(rewards)
@@ -315,7 +366,6 @@ class cardTableWidget(QWidget):
 
     def findGraphicsCardItem_(self, my_card):
         for i in self.getCardsList():
-            print(i, my_card)
             if i.card == my_card:
                 return i
 
@@ -385,7 +435,7 @@ class cardTableWidget(QWidget):
         if card_played:
             print("Active Player", self.my_game.active_player)
             print("before round finished!")
-            rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+            rewards, round_finished = self.playVirtualCard(action)
             if rewards is not None:
                 self.checkFinished()
                 self.showResult(rewards)
