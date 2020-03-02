@@ -54,6 +54,11 @@ class CardGraphicsItem(QtSvg.QGraphicsSvgItem):
         effect.setOffset(QPointF(-5,0))
         self.setGraphicsEffect(effect)
 
+    # def mousePressEvent(self, event):
+    #     print("mouse Press Event!!!", event)
+    #     p = event.pos()
+    #     p -= QPoint(10, 10) #correction to mouse click. not sure why this happen
+    #     print(p)
 
     def hoverLeaveEvent(self, event):
         """ event when mouse leave a card """
@@ -407,7 +412,9 @@ class cardTableWidget(QWidget):
         else:
             text_item.setDefaultTextColor(Qt.black)
 
-    def mousePressEvent(self, event):
+    def mouseDoubleClickEvent(self, event):
+
+        print("event::::", event)
         try:
             # check if item is a CardGraphicsItem
             p = event.pos()
@@ -421,6 +428,12 @@ class cardTableWidget(QWidget):
         # print(self.view.items(p))
         # print("view.mapToScene: ",end="")
         # print(self.view.mapToScene(p))
+
+    # def mousePressEvent(self, event):
+    #     #overriding mousemoveevent SEGFAULTS - Qt Centre Forum
+    #     # pure virtual method called
+    #     # terminate called without an active exception
+    #     # Aborted (core dumped)
 
     def cardPressed(self, card):
         try:
