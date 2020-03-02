@@ -1,6 +1,5 @@
 import numpy as np
 from copy import deepcopy
-import matplotlib.pyplot as plt
 
 class policy(object):
 	def __init__(self):
@@ -232,7 +231,7 @@ class VanilaMCTS(object):
 			print('searching depth = %d' % (depth_searched))
 			#print(self.tree)
 			print((0,)+(best_action,))
-			return best_action, best_q, depth_searched, self.tree[(0,)+(best_action,)]
+			return best_action, best_q, depth_searched
 
 
 '''

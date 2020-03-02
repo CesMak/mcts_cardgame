@@ -306,7 +306,7 @@ class game(object):
 		myDeck.shuffle()
 		self.nu_games_played +=1
 
-		self.shifting_phase    = 0
+		self.shifting_phase    = 200 # TODO
 		self.players           = []  # stores players object
 		self.on_table_cards    = []  # stores card on the table
 		self.played_cards      = []  # of one game # see also in players offhand!

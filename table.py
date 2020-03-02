@@ -213,6 +213,7 @@ class cardTableWidget(QWidget):
         self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
 
         #5. Play until human:
+        print("Play again!!!")
         self.playUntilHuman()
 
     def getHighlight(self, playeridx):
@@ -261,10 +262,10 @@ class cardTableWidget(QWidget):
             exploration_constant=self.options["expo"][current_player],
             state=state, player=current_player, game=self.my_game, tree = self.my_tree)
             stdout.disable()
-            action, best_q, depth, best_tree = mcts.solve()
+            action, best_q, depth = mcts.solve()
             stdout.enable()
             self.my_game.setState(state+[current_player])
-            print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
+            #print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
 
             if self.options["mcts_save_actions"]:
                 line = (self.my_game.getBinaryState(current_player, action, best_q))
@@ -374,6 +375,7 @@ class cardTableWidget(QWidget):
             card_to_play = self.my_game.players[player_idx].hand[action_idx]
         except:
             print("Error no card left anymore!")
+            return None
         for i in self.getCardsList():
             if i.card == card_to_play:
                 return i
@@ -526,7 +528,6 @@ class cardTableWidget(QWidget):
 
         self.scene.addItem(tmp)
         return tmp
-
 
     def getCardsList(self):
         """ returns and prints all CardGraphicsItem in scene (disregard other graphics items) """
