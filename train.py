@@ -12,6 +12,11 @@ from torch.autograd import Variable
 
 import matplotlib.pyplot as plt
 
+# For exporting the model:
+import torch.onnx
+import onnx
+import onnxruntime
+
 # Links:
 # https://www.kaggle.com/danieldagnino/training-a-classifier-with-pytorch
 # https://discuss.pytorch.org/t/training-a-card-game-classifier/70625/2
@@ -96,10 +101,36 @@ def load_data(pkl_name, batch_size_):
     my_data = MyDataSet('data/actions__.txt', use_pickle=1, pickle_name=pkl_name)
     return DataLoader(my_data, batch_size=batch_size_, num_workers=0)
 
-def save_model(path, start_time):
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+def test_onnx(path, x):
+    # onnx_model = onnx.load(path)
+    # onnx.checker.check_model(onnx_model)
+    # print("loaded onxx model", onnx_model)
+    print("I will now check your onnx model using onnx")
+
+    ort_session = onnxruntime.InferenceSession(path)
+    print(ort_session)
+    print(ort_session.get_inputs())
+    print(ort_session.get_inputs()[0].name)
+
+    # compute ONNX Runtime output prediction
+    print("I will now test your model!")
+    ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(x)}
+    ort_outs = ort_session.run(None, ort_inputs)
+    print(ort_outs)
+
+def save_model(model_to_save, path, start_time, input_vector=None):
     print("Finished Training in:\t"+str(datetime.datetime.now()-start_time))
-    torch.save(model.state_dict(), path)
+    torch.save(model_to_save.state_dict(), path)
     print("I saved your model to:\t"+path)
+
+    # Export the model
+    # see: https://pytorch.org/tutorials/advanced/super_resolution_with_caffe2.html
+    # and: https://pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html
+    print("I now save your onnx model with parameters!")
+    torch_out = torch.onnx._export(model_to_save, input_vector, path+".onnx",  export_params=True)
 
 def test_trained_model(input_vector, path):
     # input vector: as list 180x1 0...1...0...1
@@ -110,8 +141,8 @@ def test_trained_model(input_vector, path):
     net.load_state_dict(torch.load(path))
     outputs = net(input_vector)
     #print("Shape of Outpus:\t"+str(outputs.shape))
-    #print("Outputs:")
-    #print(outputs)
+    print("Outputs: using pytorch:")
+    print(outputs)
     a, predicted = torch.max(outputs/100, 0)
     #print(predicted)
     return predicted
@@ -155,5 +186,7 @@ if __name__ == '__main__':
         # Model weight modification based on the optimizer.
         optimizer.step()
 
-    save_model(path, start_time)
+    print(data[0])
+    save_model(model, path, start_time, input_vector=data[0])
+    test_onnx(path+".onnx", data[0])
     test_trained_model([data[0]], path)

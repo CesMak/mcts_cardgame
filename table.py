@@ -270,7 +270,7 @@ class cardTableWidget(QWidget):
             action, best_q, depth = mcts.solve()
             stdout.enable()
             self.my_game.setState(state+[current_player])
-            #print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
+            print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
 
             if self.options["mcts_save_actions"]:
                 line = (self.my_game.getBinaryState(current_player, action, best_q))
@@ -413,7 +413,6 @@ class cardTableWidget(QWidget):
             text_item.setDefaultTextColor(Qt.black)
 
     def mouseDoubleClickEvent(self, event):
-
         print("event::::", event)
         try:
             # check if item is a CardGraphicsItem

@@ -163,6 +163,11 @@ tree = {root_id: {'state': state,
 		Invalid moves tried to play: 297
 		```
 
+# Creating an exe
+	* convert torch model and params to onnx
+	* use pyinstaller (also on ubuntu possible!)
+	* in this case exe should be smaller!
+
 # TODO
 * Create EXE!
 * Have a look at TD-Learning!
@@ -259,4 +264,73 @@ Other Card Games:
 (0, 1, 3): {'state': [[<gameClasses.player object at 0x7f8478423c88>, <gameClasses.player object at 0x7f8478427358>, <gameClasses.player object at 0x7f8478427a58>, <gameClasses.player object at 0x7f8478429198>], array([0., 0., 0., 0.]), [9 of B, 8 of B], [9 of B, 8 of B], 20, array([0., 0., 0., 0.])], 'player': 2, 'cards_away': 3, 'child': [], 'parent': (0, 1), 'n': 0, 'w': 0, 'q': 0},
 (0, 1, 4): {'state': [[<gameClasses.player object at 0x7f8478429908>, <gameClasses.player object at 0x7f8478429f98>, <gameClasses.player object at 0x7f847842b6d8>, <gameClasses.player object at 0x7f847842bdd8>], array([0., 0., 0., 0.]), [9 of B, 13 of B], [9 of B, 13 of B], 20, array([0., 0., 0., 0.])], 'player': 2, 'cards_away': 4, 'child': [], 'parent': (0, 1), 'n': 0, 'w': 0, 'q': 0},
 (0, 1, 10): {'state': [[<gameClasses.player object at 0x7f847842d588>, <gameClasses.player object at 0x7f847842dc18>, <gameClasses.player object at 0x7f8478430358>, <gameClasses.player object at 0x7f8478430a58>], array([0., 0., 0., 0.]), [9 of B, J of R], [9 of B, J of R], 20, array([0., 0., 0., 0.])], 'player': 2, 'cards_away': 10, 'child': [], 'parent': (0, 1), 'n': 1, 'w': 4.0, 'q': 4.0}}
-``` 
+```
+
+
+# Output of **train.py** commit: *onnx_working*:
+```
+Read in samples:	18859
+One sample:
+[[0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 57]
+[1,   100] loss: 387.769
+[1,   200] loss: 337.980
+[1,   300] loss: 315.572
+[1,   400] loss: 294.084
+[1,   500] loss: 275.887
+[1,   600] loss: 270.683
+[1,   700] loss: 260.207
+[1,   800] loss: 253.414
+[1,   900] loss: 249.442
+[1,  1000] loss: 238.414
+[1,  1100] loss: 232.762
+[1,  1200] loss: 229.282
+[1,  1300] loss: 230.973
+[1,  1400] loss: 226.616
+[1,  1500] loss: 220.025
+[1,  1600] loss: 211.258
+[1,  1700] loss: 216.079
+[1,  1800] loss: 206.454
+tensor([1., 1., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 1.,
+        0., 0., 0., 0., 0., 1., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.,
+        1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 1., 1., 0., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 1., 1.,
+        1., 1., 1., 0., 1., 1., 1., 1., 1., 0., 0., 0., 1., 1., 1., 1., 1., 1.])
+Finished Training in:	0:00:02.312103
+I saved your model to:	data/model.pth
+I now save your onnx model with parameters!
+I will now check your onnx model using onnx
+<onnxruntime.capi.session.InferenceSession object at 0x7f9873930da0>
+[<onnxruntime.capi.onnxruntime_pybind11_state.NodeArg object at 0x7f98691a5bc8>]
+input.1
+I will now test your model!
+[array([ -3.2607808,  -3.457503 ,  -7.639492 ,  -7.3476543,  -5.508501 ,
+        -6.5215015,  -0.8601465,  -6.4172306,  -7.440096 ,  -2.6843185,
+        -8.942799 ,  -5.1809483,  -4.9209766,  -7.719907 ,  -9.005304 ,
+        -8.302288 ,  -7.1568375,  -3.3195906,  -8.95669  ,  -7.119462 ,
+        -7.390052 ,  -7.781508 ,  -6.76344  ,  -3.5796459,  -6.1413436,
+        -2.9167445,  -4.15365  ,  -8.423178 ,  -6.104857 ,  -5.539221 ,
+        -4.0965657,  -6.5832458, -11.25923  ,  -5.9366293,  -8.30854  ,
+        -8.426708 ,  -2.1296508,  -8.785681 ,  -9.701228 ,  -2.1758657,
+        -7.4398003,  -7.3487854,  -7.1235924,  -6.95055  ,  -6.9943233,
+        -6.5696526, -11.682266 , -11.028063 , -10.226396 , -10.814424 ,
+       -10.284258 ,  -5.9688644,  -5.6975207,  -6.2563257,  -9.259622 ,
+        -6.365409 ,  -7.2721806,  -8.853003 , -10.176397 , -10.104825 ],
+      dtype=float32)]
+train.py:137: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  input_vector = torch.tensor(input_vector[0]).float()
+Outputs: using pytorch:
+tensor([ -3.2608,  -3.4575,  -7.6395,  -7.3477,  -5.5085,  -6.5215,  -0.8601,
+         -6.4172,  -7.4401,  -2.6843,  -8.9428,  -5.1809,  -4.9210,  -7.7199,
+         -9.0053,  -8.3023,  -7.1568,  -3.3196,  -8.9567,  -7.1195,  -7.3901,
+         -7.7815,  -6.7634,  -3.5796,  -6.1413,  -2.9167,  -4.1536,  -8.4232,
+         -6.1049,  -5.5392,  -4.0966,  -6.5832, -11.2592,  -5.9366,  -8.3085,
+         -8.4267,  -2.1297,  -8.7857,  -9.7012,  -2.1759,  -7.4398,  -7.3488,
+         -7.1236,  -6.9506,  -6.9943,  -6.5697, -11.6823, -11.0281, -10.2264,
+        -10.8144, -10.2843,  -5.9689,  -5.6975,  -6.2563,  -9.2596,  -6.3654,
+         -7.2722,  -8.8530, -10.1764, -10.1048], grad_fn=<LogSoftmaxBackward>)
+```
