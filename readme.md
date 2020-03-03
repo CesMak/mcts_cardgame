@@ -1,3 +1,34 @@
+# Windows
+Download [mcts_withes_folder.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
+
+	![mcts_witches](data/nn_better_than_random.png)
+
+To play a card as HUMAN **double click** the card.
+
+# Options
+See file **gui_options.json**
+```
+{
+  "names": ["Laura", "Alfons", "Frank", "Lea"],
+  "type": ["NN", "RANDOM", "RANDOM", "NN"],  ###HUMAN, RANDOM, NN, MCTS
+  "expo": [500, 500, 500, 500],
+  "depths": [300, 300, 300, 300],
+  "itera": [5000, 5000, 5000, 5000],
+  "faceDown": [false, false, false, false],
+  "sleepTime": 0.001,
+  "model_path_for_NN": "data/test.pth",
+  "nu_games": 100,
+  "shifting_phase": 20,
+  "mcts_save_actions": false,
+  "mcts_actions_path": "data/actions_strong44__mcts.txt",
+  "automatic_mode": false,
+  "save_game_play": false,
+  "game_play_path": "data/game_play.pkl",
+  "onnx_path": "data/model_long_training.pth.onnx"  ### model_long_training.pth.onnx, model.pth.onnx, actions_all.pth.onnx
+}
+```
+
+# Further Information
 In here I test Monte Carlo Tree Search (MCTS) for a multi player card game.
 Normally MCTS is used for games like chess to select a set of promising options (instead of testing all possible options as in minimax algorithm).
 Now in comparison to a card game chess is played in turn. In a card game the winner of the last round is allowed to play the next card.

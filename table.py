@@ -165,9 +165,10 @@ class cardTableWidget(QWidget):
             test = json.load(json_file)
             txt = prettyjson(test)
         text = easygui.textbox("Contents of file:\t"+self.options_file_path, "Adjust your options", txt)
-        dict = (json.loads(text))
-        with open(self.options_file_path, 'w') as outfile:
-            json.dump(dict, outfile)
+        if text is not None: # Cancel pressed (None case)
+            dict = (json.loads(text))
+            with open(self.options_file_path, 'w') as outfile:
+                json.dump(dict, outfile)
 
     def nextRound_clicked(self):
         '''
@@ -223,7 +224,6 @@ class cardTableWidget(QWidget):
         self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
 
         #5. Play until human:
-        print("Play again!!!")
         self.playUntilHuman()
 
     def getHighlight(self, playeridx):
@@ -236,10 +236,10 @@ class cardTableWidget(QWidget):
             return 0
 
     def setNames(self):
-        self.changePlayerName(self.player1_label,  self.options["names"][0], highlight=self.getHighlight(0))
-        self.changePlayerName(self.player2_label,  self.options["names"][1], highlight=self.getHighlight(1))
-        self.changePlayerName(self.player3_label,  self.options["names"][2], highlight=self.getHighlight(2))
-        self.changePlayerName(self.player4_label,  self.options["names"][3], highlight=self.getHighlight(3))
+        self.changePlayerName(self.player1_label,  self.options["names"][0]+" ("+self.options["type"][0]+")", highlight=self.getHighlight(0))
+        self.changePlayerName(self.player2_label,  self.options["names"][1]+" ("+self.options["type"][1]+")", highlight=self.getHighlight(1))
+        self.changePlayerName(self.player3_label,  self.options["names"][2]+" ("+self.options["type"][2]+")", highlight=self.getHighlight(2))
+        self.changePlayerName(self.player4_label,  self.options["names"][3]+" ("+self.options["type"][3]+")", highlight=self.getHighlight(3))
 
     def showResult(self, rewards):
         i = 0
@@ -290,6 +290,12 @@ class cardTableWidget(QWidget):
             action = self.test_onnx(line, self.options["onnx_path"])
             card   = self.my_game.players[current_player].getIndexOfCard(action)
             action = self.my_game.players[current_player].specificIndexHand(card)
+            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
+            incolor =self.my_game.getInColor()
+            if action not in is_allowed_list_idx and incolor is not None:
+                print("ACTION NOT ALLOWED!", card)
+                print("I play random possible option instead")
+                action = self.my_game.getRandomOption_()
         elif "MCTS" in self.my_game.ai_player[current_player]:
             state = self.my_game.getGameState()
             mcts = VanilaMCTS(n_iterations=self.options["itera"][current_player],
@@ -362,6 +368,7 @@ class cardTableWidget(QWidget):
                 return
             self.setNames()
             self.checkFinished()
+            self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1)+" Round: "+str(self.my_game.current_round+1))
 
     def playCard(self, graphic_card_item, current_player, cards_on_table, player_name):
         if graphic_card_item.player == current_player:

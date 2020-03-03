@@ -297,8 +297,8 @@ class game(object):
 			play.hand = play.getHandCardsSorted()
 			self.players.append(play)
 
-		for p in self.players:
-			p.showHand()
+		# for p in self.players:
+		# 	p.showHand()
 
 	def reset_game(self):
 		#not used yet.
@@ -312,6 +312,7 @@ class game(object):
 		self.played_cards      = []  # of one game # see also in players offhand!
 		self.gameOver          = 0
 		self.rewards           = np.zeros((self.nu_players,))
+		self.current_round 
 		self.setup_game(myDeck)
 		self.active_player = self.nextGamePlayer()
 
@@ -510,6 +511,7 @@ class game(object):
 		# Case round finished:
 		if len(self.on_table_cards) == self.nu_players:
 			winning_card, on_table_win_idx, player_win_idx = self.evaluateWinner()
+			self.current_round +=1
 			self.players[player_win_idx].appendCards(self.on_table_cards)
 			self.on_table_cards = []
 			self.active_player  = player_win_idx

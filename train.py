@@ -47,6 +47,7 @@ class MyDataSet(Dataset):
         sfile = bz2.BZ2File(self.pickle_name, 'w')
         pickle.dump(self.samples, sfile, protocol=2)
         sfile.close()
+        print("Converted to", self.pickle_name, "Samples:", len(self.samples))
 
     def __len__(self):
         return len(self.samples)
@@ -93,7 +94,7 @@ class my_model_2(nn.Module):
 #### General Functions
 def conver2pickle(pkl_name):
     from torch.utils.data import DataLoader
-    my_data = MyDataSet('data/actions__.txt', use_pickle=1, pickle_name=pkl_name)
+    my_data = MyDataSet('data/actions_all.txt', use_pickle=0, pickle_name=pkl_name)
     my_data.__convert2pickle__()
 
 def load_data(pkl_name, batch_size_):
@@ -154,8 +155,9 @@ def test_trained_model(input_vector, path):
 
 
 if __name__ == '__main__':
-    my_loader = load_data("data/actions__.pkl", batch_size_=10)
-    path      = "data/model.pth"
+    #conver2pickle("actions_all.pkl")
+    my_loader = load_data("data/actions_all.pkl", batch_size_=10)
+    path      = "data/actions_all.pth"
 
     model = my_model()
     criterium = nn.CrossEntropyLoss()
