@@ -117,7 +117,12 @@ def test_onnx(path, x):
 
     # compute ONNX Runtime output prediction
     print("I will now test your model!")
-    ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(x)}
+    print("Inputs:", x)
+    print("Input type:", type(x))
+    y = to_numpy(x)
+    print(type(y))
+    print(y)
+    ort_inputs = {ort_session.get_inputs()[0].name: y}
     ort_outs = ort_session.run(None, ort_inputs)
     print(ort_outs)
 
@@ -144,7 +149,7 @@ def test_trained_model(input_vector, path):
     print("Outputs: using pytorch:")
     print(outputs)
     a, predicted = torch.max(outputs/100, 0)
-    #print(predicted)
+    print("predicted:", predicted)
     return predicted
 
 

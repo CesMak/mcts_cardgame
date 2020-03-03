@@ -13,7 +13,12 @@ from prettyjson import prettyjson
 from gameClasses import card, deck, player, game
 
 #For NN:
-from train import test_trained_model
+# (Optional for testing)
+# from train import test_trained_model
+
+# Building an exe use onnx
+import onnxruntime
+import numpy as np
 
 #For MCTS:
 from VanilaMCTS import VanilaMCTS
@@ -250,6 +255,29 @@ class cardTableWidget(QWidget):
         if self.options["nu_games"] > self.my_game.nu_games_played+1:
             self.nextRound_clicked()
 
+    def to_numpy(self, tensor):
+        # used in test_onnx
+        return tensor.detach().cpu().numpy()
+
+    def test_onnx(self, x, path):
+        #print("path:", path)
+        ort_session = onnxruntime.InferenceSession(path)
+
+        # compute ONNX Runtime output prediction
+        #print(type(x[0]), x[0])
+        #print(type(np.asarray(x[0])), np.asarray(x[0]))
+        #print("I will now test your model!")
+        ort_inputs = {ort_session.get_inputs()[0].name: np.asarray(x[0], dtype=np.float32)}
+        ort_outs = ort_session.run(None, ort_inputs)
+        #print(ort_outs)
+        max_value = (np.amax(ort_outs))
+        #print(max_value)
+        result = np.where(ort_outs == np.amax(ort_outs))
+        #print(result)
+
+        #TODO sort after indices?!
+        return result[1][0]
+
     def selectAction(self):
         # TODO incooperate shift
         current_player = self.my_game.active_player
@@ -257,7 +285,9 @@ class cardTableWidget(QWidget):
             action = self.my_game.getRandomOption_()
         elif "NN"   in self.my_game.ai_player[current_player]:
             line = (self.my_game.getBinaryState(current_player, 0, -1.0))
-            action = test_trained_model(line, self.options["model_path_for_NN"])# action from 0-60 -> transform to players action!
+            # optional for testing with pytorch:
+            #action = test_trained_model(line, self.options["model_path_for_NN"])# action from 0-60 -> transform to players action!
+            action = self.test_onnx(line, self.options["onnx_path"])
             card   = self.my_game.players[current_player].getIndexOfCard(action)
             action = self.my_game.players[current_player].specificIndexHand(card)
         elif "MCTS" in self.my_game.ai_player[current_player]:
