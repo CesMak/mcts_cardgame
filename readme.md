@@ -1,7 +1,7 @@
 # Windows
 Download [mcts_withes_folder.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
 
-	![mcts_witches](data/nn_better_than_random.png)
+![mcts_witches](data/nn_better_than_random.png)
 
 To play a card as HUMAN **double click** the card.
 

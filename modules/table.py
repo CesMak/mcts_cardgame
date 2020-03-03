@@ -8,9 +8,9 @@ from PyQt5 import QtSvg
 import time
 import easygui
 import json
-from prettyjson import prettyjson
+from modules.prettyjson import prettyjson
 
-from gameClasses import card, deck, player, game
+from modules.gameClasses import card, deck, player, game
 
 #For NN:
 # (Optional for testing)
@@ -21,8 +21,8 @@ import onnxruntime
 import numpy as np
 
 #For MCTS:
-from VanilaMCTS import VanilaMCTS
-import stdout  # for silent print
+from modules.VanilaMCTS import VanilaMCTS
+from modules.stdout import enable, disable  # for silent print
 import pickle
 from copy import deepcopy
 
@@ -302,9 +302,9 @@ class cardTableWidget(QWidget):
             depth=self.options["depths"][current_player],
             exploration_constant=self.options["expo"][current_player],
             state=state, player=current_player, game=self.my_game, tree = self.my_tree)
-            stdout.disable()
+            disable() #stdout
             action, best_q, depth = mcts.solve()
-            stdout.enable()
+            enable()#stdout
             self.my_game.setState(state+[current_player])
             print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
 

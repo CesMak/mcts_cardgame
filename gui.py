@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui  import *
 import random
-from table import cardTableWidget
+from modules.table import cardTableWidget
 
 #Links
 # https://github.com/eladj/QtCards
