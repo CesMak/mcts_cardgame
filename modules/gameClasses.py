@@ -297,8 +297,8 @@ class game(object):
 			play.hand = play.getHandCardsSorted()
 			self.players.append(play)
 
-		# for p in self.players:
-		# 	p.showHand()
+		for p in self.players:
+			p.showHand()
 
 	def reset_game(self):
 		#not used yet.
@@ -312,7 +312,7 @@ class game(object):
 		self.played_cards      = []  # of one game # see also in players offhand!
 		self.gameOver          = 0
 		self.rewards           = np.zeros((self.nu_players,))
-		self.current_round 
+		self.current_round
 		self.setup_game(myDeck)
 		self.active_player = self.nextGamePlayer()
 
@@ -417,7 +417,7 @@ class game(object):
 		#    return self.playersGo, self.neuralNetworkInputs[self.playersGo].reshape(1,412), convertAvailableActions(self.returnAvailableActions()).reshape(1,1695)
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor())
-		return self.active_player, self.neuralNetworkInputs[self.active_player].reshape(1, 180), self.convertAvailableActions(play_options).reshape(1, 60)
+		return self.active_player, np.asarray(self.getCurrentPlayerState(self.active_player), dtype=int), play_options
 
 	def getBinaryStateFirstCard(self, playeridx, action):
 		hand   = self.players[playeridx].getBinaryHand(self.players[playeridx].hand)
