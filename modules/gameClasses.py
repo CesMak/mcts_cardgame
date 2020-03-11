@@ -114,9 +114,11 @@ class player(object):
 		#returns 0....1... 60x1 array BGRY 0...15 sorted
 		options_list = [0]*60
 		options      = self.getOptions(incolor)
+		print("Binary Options:")
 		for opt in options:
 			# i is the index of the card in the hand!
 			[i, card] = opt
+			print(card)
 			options_list[self.getCardIndex(card)] = 1
 		return options_list
 
@@ -417,7 +419,7 @@ class game(object):
 		#    return self.playersGo, self.neuralNetworkInputs[self.playersGo].reshape(1,412), convertAvailableActions(self.returnAvailableActions()).reshape(1,1695)
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor())
-		return self.active_player, np.asarray(self.getCurrentPlayerState(self.active_player), dtype=int), play_options
+		return self.active_player, np.asarray(self.getmyState(self.active_player)), play_options
 
 	def getBinaryStateFirstCard(self, playeridx, action):
 		hand   = self.players[playeridx].getBinaryHand(self.players[playeridx].hand)
@@ -582,6 +584,21 @@ class game(object):
 		for i, player in enumerate(self.players):
 			#print(i, player.offhand)
 			self.rewards[i] = player.countResult(player.offhand)
+
+	def getmyState(self, playeridx):
+		on_table =[0.00]*60
+		on_hand  =[0.00]*60
+		played   =[0.00]*60
+		zeros    =[0.00]*60
+		for card in self.on_table_cards:
+			on_table[self.getCardIndex(card)]    = 1.00
+
+		for card in self.players[playeridx].hand:
+			on_hand[self.getCardIndex(card)] =1.00
+
+		for card in self.played_cards:
+			played[self.getCardIndex(card)] = 1.00
+		return [[[on_table, on_hand, played]]]
 
 	def getCurrentPlayerState(self, playeridx):
 		# get Current State as bool (binary) values

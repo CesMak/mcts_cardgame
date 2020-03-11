@@ -37,8 +37,10 @@ class PlayingPolicy(nn.Module):
         in_channels = 4   # four players
         out_channels = 15 # 15 cards per player
 
-        self.conv418 = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 4), stride=1, dilation=(1, 8))
-        self.conv881 = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 8), stride=8, dilation=(1, 1))
+        # belot: weight of size 8 5 3 4, expected input[1, 4, 3, 32] to have 5 channels, but got 4 channels instead
+
+        self.conv418 = nn.Conv2d(1, out_channels, 3)
+        self.conv881 = nn.Conv2d(1, out_channels, 3)
         self.classify = nn.Linear(104, in_channels*out_channels)
 
         # Optimizer
@@ -58,9 +60,9 @@ class PlayingPolicy(nn.Module):
     def forward(self, state: torch.tensor, legalCards: torch.tensor):
         '''
         state: torch.tensor
-            - 1x60  Cards of this player
-            - 1x60  Cards already played
-            - 1x60  Cards currently on the table
+            - 1x60  Cards  on the table
+            - 1x60  Cards hand of current player
+            - 1x60  Cards played
         legalCards: toch.tensor
             - 1x60  Cards [0..1...0] which are possible to be played
         RETURN: torch.tensor
@@ -70,6 +72,10 @@ class PlayingPolicy(nn.Module):
         In order to export an onnx model the inputs AND outputs of this function have to be TENSORS
         See also here: https://discuss.pytorch.org/t/torch-onnx-export-fails/72418/2
         '''
+        print("Inside Forward:")
+        print(state)
+        print(state.shape) #[4, 3, 32]
+
         # state -> 4 (players), 3 (card states), 60 (cards)
         out418 = F.relu(self.conv418(state)) # -> (batch_size, out_channels, ?, ?)
         out881 = F.relu(self.conv881(state)) # -> (batch_size, out_channels, ?, ?)
@@ -186,10 +192,10 @@ class TestReinforce:
         elif "REINFORCE"  in self.my_game.ai_player[current_player]:
             # get state of active player
             active_player, state, options = self.my_game.getState()
-            print(active_player)
-            print(state)
-            print(options)
-            torch_tensor = self.playingPolicy(torch.tensor(state), torch.tensor(options))
+            print("Options", options)
+            print("State: [Ontable, hand, played]\n", state)
+            #state = torch.tensor(state, dtype=float)
+            torch_tensor = self.playingPolicy(torch.tensor(state).float(), torch.tensor(options))
             action_idx   = int(torch_tensor[:, 0])
             log_action_probability = torch_tensor[:, 1]
         return action
@@ -198,8 +204,8 @@ class TestReinforce:
         while not self.my_game.gameOver:
             action = self.selectAction()
             current_player = self.my_game.active_player
-            card   = self.my_game.players[current_player].getIndexOfCard(action)
-            print(self.my_game.ai_player[current_player], card, " Index:", action, " Hand Index:")
+            card   = self.my_game.players[current_player].hand[action]
+            print(self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, "Hand Index:", action, "\n")
             rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
             if round_finished:
                 print("update policy now!")
