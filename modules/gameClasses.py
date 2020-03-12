@@ -114,11 +114,11 @@ class player(object):
 		#returns 0....1... 60x1 array BGRY 0...15 sorted
 		options_list = [0]*60
 		options      = self.getOptions(incolor)
-		print("Binary Options:")
+		#print("Binary Options:")
 		for opt in options:
 			# i is the index of the card in the hand!
 			[i, card] = opt
-			print(card)
+			#print(card)
 			options_list[self.getCardIndex(card)] = 1
 		return options_list
 
@@ -511,8 +511,10 @@ class game(object):
 		self.on_table_cards.append(played_card)
 		self.played_cards.append(played_card)
 		# Case round finished:
+		trick_rewards = [0, 0, 0, 0]
 		if len(self.on_table_cards) == self.nu_players:
 			winning_card, on_table_win_idx, player_win_idx = self.evaluateWinner()
+			trick_rewards[player_win_idx] = self.players[player_win_idx].countResult([self.on_table_cards])
 			self.current_round +=1
 			self.players[player_win_idx].appendCards(self.on_table_cards)
 			self.on_table_cards = []
@@ -525,9 +527,11 @@ class game(object):
 		if finished is not None:
 			self.assignRewards()
 			self.total_rewards += self.rewards
-			return self.rewards, True
+			# CAUTION CHANGED: before:return self.rewards, True
+			return trick_rewards, True
 		else:
-			return None, round_finished
+			# trick value is not 100% the local value as 11 red etc. have future effects!
+			return trick_rewards, round_finished
 		# TODO
 		# finished = self.isGameFinished()
 		# self.assignRewards()

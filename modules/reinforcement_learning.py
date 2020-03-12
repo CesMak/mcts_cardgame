@@ -12,6 +12,7 @@ import numpy as np
 import torch.onnx
 import onnx
 import onnxruntime
+import stdout
 
 from gameClasses import card, deck, player, game
 import json
@@ -22,7 +23,7 @@ class PolicyGradientLoss(nn.Module):
     def forward(self, log_action_probabilities, discounted_rewards):
         # log_action_probabilities -> (B, timesteps, 1)
         # discounted_rewards -> (B, timesteps, 1)
-        losses = - discounted_rewards * log_action_probabilities # -> (B, timesteps, 1)
+        losses = -discounted_rewards * log_action_probabilities # -> (B, timesteps, 1)
         loss = losses.mean()
         return loss
 
@@ -38,13 +39,12 @@ class PlayingPolicy(nn.Module):
         out_channels = 15 # 15 cards per player
 
         # belot: weight of size 8 5 3 4, expected input[1, 4, 3, 32] to have 5 channels, but got 4 channels instead
-
-        self.conv418 = nn.Conv2d(1, out_channels, 3)
-        self.conv881 = nn.Conv2d(1, out_channels, 3)
-        self.classify = nn.Linear(104, in_channels*out_channels)
+        self.conv418 = nn.Conv2d(1, out_channels, kernel_size=(3, 4), stride=1, dilation=(1, 8))
+        self.conv881 = nn.Conv2d(1, out_channels, kernel_size=(3, 8), stride=8, dilation=(1, 1))
+        self.classify = nn.Linear(645, in_channels*out_channels)
 
         # Optimizer
-        self.optimizer = optim.SGD(self.parameters(), lr=0.2*1e-2, momentum=0.9)
+        self.optimizer = optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
 
         # Criterion
         self.criterion = PolicyGradientLoss() #other class
@@ -72,24 +72,35 @@ class PlayingPolicy(nn.Module):
         In order to export an onnx model the inputs AND outputs of this function have to be TENSORS
         See also here: https://discuss.pytorch.org/t/torch-onnx-export-fails/72418/2
         '''
-        print("Inside Forward:")
-        print(state)
-        print(state.shape) #[4, 3, 32]
+        #print("Inside Forward:")
+        #print(state)
+        #print(state.shape) #[4, 3, 32]
 
         # state -> 4 (players), 3 (card states), 60 (cards)
         out418 = F.relu(self.conv418(state)) # -> (batch_size, out_channels, ?, ?)
         out881 = F.relu(self.conv881(state)) # -> (batch_size, out_channels, ?, ?)
+
+        #print(out418.shape)# torch.Size([1, 15, 1, 58])
+        #print(out881.shape) # torch.Size([1, 15, 1, 58])
 
         out = torch.cat((
             out418.view(out418.size(0), -1), # convert from 1,8,1,8 to 1,64
             out881.view(out881.size(0), -1),
         ), dim=1) # -> (batch_size, ?)
 
+        #print(out.shape) # print(out.shape)  # torch.Size([1, 1740])
+
         probs = F.softmax(self.classify(out), dim=1)
+        # print(probs.shape)
+        # print(probs)
+        # print(legalCards.shape)
+        # print(legalCards)
         # mask e.g.: 0. 0., 0., 0., 1., 0., 0., 1.,....
         # mask. shape: 1x60,    probs.shape: 1x60
-        probs = probs * mask # probs.shape = 1x60
+        probs = probs * legalCards # probs.shape = 1x60
         #print(probs)# e.g. tensor([[0.000, 0.0266, 0.0000,...]], grad_fn=<MulBackward0>)
+
+        #print(probs)
 
         # Get action
         distribution = Categorical(probs) # print(distribution) Categorical(probs: torch.Size([1, 32]))
@@ -104,6 +115,7 @@ class PlayingPolicy(nn.Module):
 
         # Remember the log-probability
         self.log_action_probabilities.append(log_action_probability)
+        #print(log_action_probability)
 
         returned_tensor = torch.zeros(1, 2)
         returned_tensor[:, 0] = action_idx.item()
@@ -115,9 +127,8 @@ class PlayingPolicy(nn.Module):
 
     def updatePolicy(self):
         # Log-probabilites of performed actions
-        # Convert probabs to 8x1 tensor
+        # Convert probabs to 15x1 tensor
         log_action_probabilities = torch.cat(self.log_action_probabilities, dim=0)
-        # log_action_probabilities         tensor([-1.5231e+00, -1.8974e+00, -1.1921e-07, -1.4120e+00, -1.2003e+00,
 
         # Rewards (do not reward if bidding was a must)
         discountedRewards = list()
@@ -131,7 +142,8 @@ class PlayingPolicy(nn.Module):
 
             discountedRewards.append(realReward)
 
-        rewards = torch.tensor(discountedRewards).unsqueeze(dim=1).to(_device)
+        # or here self.rewards?
+        rewards = torch.tensor(discountedRewards).unsqueeze(dim=1)
 
         # Optimization step
         self.optimizer.zero_grad()
@@ -143,6 +155,7 @@ class PlayingPolicy(nn.Module):
         print([round(x, 2) for x in self.rewards])
         #stdout.disable()
 
+        #TODO use rewards here or self.rewards??????
         loss = self.criterion(log_action_probabilities, rewards)
         loss.backward()
         self.optimizer.step()
@@ -162,53 +175,62 @@ class TestReinforce:
         self.my_game     = game(self.options)
 
     def notifyTrick(self, value):
-        normalizedReward = value / 56
+        # der schlimmste wert ist -17 (g10, g5, r1, r2)
+        # ausser wenn noch mal2 hinzukommt?! dann ist es wohl 21?!
+        normalizedReward = value / 21
+        if abs(normalizedReward)>1:
+            stdout.enable()
+            print(normalizedReward)
+            print(eeee)
         self.playingPolicy.feedback(normalizedReward)
 
-    def notifyHand(self, pointsUs, pointsThem):
-        # if len(self.biddingActions) == len(self.biddingRewards) + 1:
-        #     normalizedReward = pointsUs / 81 - 1
-        #     self.biddingRewards.append(normalizedReward)
-
-        self.playingPolicy.updatePolicy()
-
-        # reset
-        self.playedCards.clear()
-
-        # initially put all the cards in the UNKNOWN state
-        self.knowledge.clear()
-        self.knowledge[CardState.UNKNOWN] = set(belot.cards)
-
-        for player in [belot.PlayerRole.LEFT_OPPONENT, belot.PlayerRole.TEAMMATE, belot.PlayerRole.RIGHT_OPPONENT]:
-            self.knowledge[player] = dict()
-            for cardStatus in [CardState.AVAILABLE, CardState.UNAVAILABLE, CardState.TABLE]:
-                self.knowledge[player][cardStatus] = set()
-
     def selectAction(self):
-        # TODO incooperate shift
+        '''
+        the returned action is a hand card index no absolut index!
+        '''
         current_player = self.my_game.active_player
         if "RANDOM" in self.my_game.ai_player[current_player]:
             action = self.my_game.getRandomOption_()
         elif "REINFORCE"  in self.my_game.ai_player[current_player]:
             # get state of active player
             active_player, state, options = self.my_game.getState()
-            print("Options", options)
-            print("State: [Ontable, hand, played]\n", state)
-            #state = torch.tensor(state, dtype=float)
-            torch_tensor = self.playingPolicy(torch.tensor(state).float(), torch.tensor(options))
+            #print("Options", options)
+            #print("State: [Ontable, hand, played]\n", state)
+
+            torch_tensor = self.playingPolicy(torch.tensor(state).float()   , torch.tensor(options))
+            # absolut action index:
             action_idx   = int(torch_tensor[:, 0])
             log_action_probability = torch_tensor[:, 1]
+            card   = self.my_game.players[current_player].getIndexOfCard(action_idx)
+            action = self.my_game.players[current_player].specificIndexHand(card)
         return action
 
     def play(self):
-        while not self.my_game.gameOver:
-            action = self.selectAction()
-            current_player = self.my_game.active_player
-            card   = self.my_game.players[current_player].hand[action]
-            print(self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, "Hand Index:", action, "\n")
-            rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
-            if round_finished:
-                print("update policy now!")
+        #stdout.disable()
+        for j in range(0, 1):
+            i=0
+            nuGames = 1
+            while i<nuGames:
+                action = self.selectAction()
+                current_player = self.my_game.active_player
+                card   = self.my_game.players[current_player].hand[action]
+                print(self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, "Hand Index:", action, "\n")
+                rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+                if round_finished:
+                    # player idx of Reinforce
+                    self.notifyTrick(rewards[1])
+                    print("update policy now!")
+                    print("rewards", rewards)
+                    if len(self.my_game.players[current_player].hand) == 0: # game finished
+                        self.playingPolicy.updatePolicy()
+                        #stdout.enable()
+                        if i == nuGames-1:
+                            print("game finished with:::", self.my_game.total_rewards)
+                        #stdout.disable()
+                        self.my_game.reset_game()
+                        i+=1
+            self.my_game.total_rewards = [0, 0, 0, 0]
+
 
 if __name__ == "__main__":
     trainer = TestReinforce()
