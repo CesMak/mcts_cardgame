@@ -16,16 +16,93 @@ import stdout
 
 from gameClasses import card, deck, player, game
 import json
+import matplotlib.pyplot as plt
 
 # Links:
 # use logProb: https://pytorch.org/docs/stable/distributions.html
+
 class PolicyGradientLoss(nn.Module):
     def forward(self, log_action_probabilities, discounted_rewards):
         # log_action_probabilities -> (B, timesteps, 1)
         # discounted_rewards -> (B, timesteps, 1)
         losses = -discounted_rewards * log_action_probabilities # -> (B, timesteps, 1)
         loss = losses.mean()
+        print("Mean Loss  :" ,round(loss.item(), 5), "Shape losses:", losses.shape)
         return loss
+
+class WitchesPolicy(nn.Module):
+    def __init__(self):
+        super(WitchesPolicy, self).__init__()
+        self.n_inputs  = 180 # 3*60
+        self.n_outputs = 60
+        self.network = nn.Sequential(
+            nn.Linear(self.n_inputs, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, self.n_outputs),
+            nn.Softmax(dim=-1))
+        self.optimizer = optim.SGD(self.parameters(), lr=0.001, momentum=0.9)
+        self.criterion = PolicyGradientLoss() #other class
+
+        self.log_action_probabilities = []
+        self.rewards = []
+
+    def forward(self, state: torch.tensor, legalCards: torch.tensor):
+        state = state.resize_(180)
+        probs = self.network(torch.FloatTensor(state))
+        probs = probs * legalCards
+        distribution = Categorical(probs)               #
+        action_idx = distribution.sample()              #
+        log_action_probability = distribution.log_prob(action_idx)
+        self.log_action_probabilities.append(log_action_probability)
+        returned_tensor = torch.zeros(1, 2)
+        returned_tensor[:, 0] = action_idx.item()
+        returned_tensor[:, 1] = log_action_probability
+        return returned_tensor
+
+    def discount_rewards_2(self, rewards, gamma=0.9):
+        discountedRewards = list()
+        numRewards = len(self.rewards)
+        for i in range(numRewards):
+            realReward = 0
+            for j in range(i, numRewards):
+                reward = self.rewards[j]
+                realReward += reward * np.power(gamma, j - i)
+            discountedRewards.append(realReward)
+
+        rewards = torch.tensor(discountedRewards).unsqueeze(dim=1)
+        return rewards
+
+    def discount_rewards(self, rewards, gamma=0.99):
+        r = np.array([gamma**i * rewards[i] for i in range(len(rewards))])
+        # Reverse the array direction for cumsum and then
+        # revert back to the original order
+        r = r[::-1].cumsum()[::-1]
+        result = r - r.mean()
+        return  torch.tensor(result).unsqueeze(dim=1)
+
+    def feedback(self, reward: float):
+        self.rewards.append(reward)
+
+    def updatePolicy(self):
+        log_action_probabilities = torch.stack(self.log_action_probabilities)
+        rewards  = torch.tensor(self.rewards) # self.discount_rewards(self.rewards)
+        rewards2 = self.discount_rewards_2(self.rewards)
+
+        print("Rewards  :" ,"%.2f "*len(self.rewards) % tuple(self.rewards))
+        print("Disc. Rew:" ,"%.2f "*len(rewards) % tuple(rewards))
+        print("Disc. Rew2:" ,"%.2f "*len(rewards2) % tuple(rewards2))
+
+        # Optimization step
+        self.optimizer.zero_grad()
+        loss = self.criterion(log_action_probabilities, rewards)
+        loss.backward()
+        self.optimizer.step()
+        self.log_action_probabilities.clear()
+        self.rewards.clear()
 
 class PlayingPolicy(nn.Module):
     def __init__(self):
@@ -45,6 +122,7 @@ class PlayingPolicy(nn.Module):
 
         # Optimizer
         self.optimizer = optim.SGD(self.parameters(), lr=1e-2, momentum=0.9)
+        #self.optimizer = optim.Adam(self.parameters(), lr=1e-2)
 
         # Criterion
         self.criterion = PolicyGradientLoss() #other class
@@ -125,25 +203,32 @@ class PlayingPolicy(nn.Module):
     def feedback(self, reward: float):
         self.rewards.append(reward)
 
+    def discount_rewards(self, rewards, gamma=0.99):
+        r = np.array([gamma**i * rewards[i] for i in range(len(rewards))])
+        # Reverse the array direction for cumsum and then
+        # revert back to the original order
+        r = r[::-1].cumsum()[::-1]
+        result = r - r.mean()
+        return  torch.tensor(result).unsqueeze(dim=1)
+
     def updatePolicy(self):
         # Log-probabilites of performed actions
         # Convert probabs to 15x1 tensor
         log_action_probabilities = torch.cat(self.log_action_probabilities, dim=0)
-
-        # Rewards (do not reward if bidding was a must)
-        discountedRewards = list()
-        numRewards = len(self.rewards)
-        for i in range(numRewards):
-            realReward = 0
-
-            for j in range(i, numRewards):
-                reward = self.rewards[j]
-                realReward += reward * np.power(self.gamma, j - i)
-
-            discountedRewards.append(realReward)
-
-        # or here self.rewards?
-        rewards = torch.tensor(discountedRewards).unsqueeze(dim=1)
+        rewards = self.discount_rewards(self.rewards)
+        # discountedRewards = list()
+        # numRewards = len(self.rewards)
+        # for i in range(numRewards):
+        #     realReward = 0
+        #
+        #     for j in range(i, numRewards):
+        #         reward = self.rewards[j]
+        #         realReward += reward * np.power(self.gamma, j - i)
+        #
+        #     discountedRewards.append(realReward)
+        #
+        # # or here self.rewards?
+        # rewards = torch.tensor(discountedRewards).unsqueeze(dim=1)
 
         # Optimization step
         self.optimizer.zero_grad()
@@ -167,7 +252,8 @@ class PlayingPolicy(nn.Module):
 ### TODO GAME HERE
 class TestReinforce:
     def __init__(self, parent=None):
-        self.playingPolicy = PlayingPolicy()
+        #self.playingPolicy = PlayingPolicy()
+        self.witchesPolicy  = WitchesPolicy()
         self.options = {}
         self.options_file_path =  "../data/reinforce_options.json"
         with open(self.options_file_path) as json_file:
@@ -177,12 +263,14 @@ class TestReinforce:
     def notifyTrick(self, value):
         # der schlimmste wert ist -17 (g10, g5, r1, r2)
         # ausser wenn noch mal2 hinzukommt?! dann ist es wohl 21?!
-        normalizedReward = value / 21
+        #value +=21
+        normalizedReward = value / 21 # 21 zuvor sonst 26
         if abs(normalizedReward)>1:
             stdout.enable()
             print(normalizedReward)
             print(eeee)
-        self.playingPolicy.feedback(normalizedReward)
+        #self.playingPolicy.feedback(normalizedReward)
+        self.witchesPolicy.feedback(normalizedReward)
 
     def selectAction(self):
         '''
@@ -191,13 +279,14 @@ class TestReinforce:
         current_player = self.my_game.active_player
         if "RANDOM" in self.my_game.ai_player[current_player]:
             action = self.my_game.getRandomOption_()
-        elif "REINFORCE"  in self.my_game.ai_player[current_player]:
+        elif "REINFO"  in self.my_game.ai_player[current_player]:
             # get state of active player
             active_player, state, options = self.my_game.getState()
             #print("Options", options)
             #print("State: [Ontable, hand, played]\n", state)
 
-            torch_tensor = self.playingPolicy(torch.tensor(state).float()   , torch.tensor(options))
+            #torch_tensor = self.playingPolicy(torch.tensor(state).float()   , torch.tensor(options))
+            torch_tensor = self.witchesPolicy(torch.tensor(state).float(), torch.tensor(options))
             # absolut action index:
             action_idx   = int(torch_tensor[:, 0])
             log_action_probability = torch_tensor[:, 1]
@@ -205,32 +294,59 @@ class TestReinforce:
             action = self.my_game.players[current_player].specificIndexHand(card)
         return action
 
-    def play(self):
-        #stdout.disable()
-        for j in range(0, 1):
-            i=0
-            nuGames = 1
-            while i<nuGames:
-                action = self.selectAction()
-                current_player = self.my_game.active_player
-                card   = self.my_game.players[current_player].hand[action]
-                print(self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, "Hand Index:", action, "\n")
-                rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
-                if round_finished:
-                    # player idx of Reinforce
-                    self.notifyTrick(rewards[1])
-                    print("update policy now!")
-                    print("rewards", rewards)
-                    if len(self.my_game.players[current_player].hand) == 0: # game finished
-                        self.playingPolicy.updatePolicy()
-                        #stdout.enable()
-                        if i == nuGames-1:
-                            print("game finished with:::", self.my_game.total_rewards)
-                        #stdout.disable()
-                        self.my_game.reset_game()
-                        i+=1
-            self.my_game.total_rewards = [0, 0, 0, 0]
+    def plotHistory(self, array):
+        'input: [[ply1, play2, play3, pay4], ...]'
+        x = np.linspace(0, len(array), num=len(array))
+        y = array
+        plt.xlabel("X-axis")
+        plt.ylabel("Y-axis")
+        plt.title("A test graph")
+        for i in range(len(y[0])):
+            z = [pt[i] for pt in y]
+            plt.plot(x, z,label = 'id %s'%i)
+        plt.legend()
+        plt.show()
 
+    def play(self):
+        history      = []
+        total_points = [0, 0, 0, 0]
+        try:
+            for j in range(0, 1000):
+                i=0
+                nuGames = 100
+                while i<nuGames:
+                    action = self.selectAction()
+                    current_player = self.my_game.active_player
+                    card   = self.my_game.players[current_player].hand[action]
+                    print("[{}] {} {}\t{}\tCard {}\tHand Index {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action))
+                    rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+                    if round_finished:
+                        # player idx of Reinforce
+                        self.notifyTrick(rewards[0])
+                        print("Update rewards: ", rewards, "\n")
+                        if len(self.my_game.players[current_player].hand) == 0: # game finished
+                            print("update policy at end of one game!")
+                            #self.playingPolicy.updatePolicy()
+                            self.witchesPolicy.updatePolicy()
+                            stdout.enable()
+                            if i == nuGames-1:
+                                print("game finished with:::", self.my_game.total_rewards, "\n")
+                                history.append(self.my_game.total_rewards)
+                            stdout.disable()
+                            self.my_game.reset_game()
+                            i+=1
+                if j>900:
+                    for i in range(len(total_points)):
+                        total_points[i] += self.my_game.total_rewards[i]
+                self.my_game.total_rewards = [0, 0, 0, 0]
+            stdout.enable()
+            print(total_points)
+            self.plotHistory(history)
+        except Exception as e:
+            stdout.enable()
+            print("ERROR!!!!", e)
+            print(total_points)
+            self.plotHistory(history)
 
 if __name__ == "__main__":
     trainer = TestReinforce()
