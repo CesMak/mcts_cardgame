@@ -35,16 +35,17 @@ class WitchesPolicy(nn.Module):
         super(WitchesPolicy, self).__init__()
         self.n_inputs  = 180 # 3*60
         self.n_outputs = 60
+        self.lr        = 0.08
         self.network = nn.Sequential(
-            nn.Linear(self.n_inputs, 256),
+            nn.Linear(self.n_inputs, 500),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(500, 500),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(500, 500),
             nn.ReLU(),
-            nn.Linear(256, self.n_outputs),
+            nn.Linear(500, self.n_outputs),
             nn.Softmax(dim=-1))
-        self.optimizer = optim.SGD(self.parameters(), lr=0.001, momentum=0.9)
+        self.optimizer = optim.SGD(self.parameters(), lr=self.lr)
         self.criterion = PolicyGradientLoss() #other class
 
         self.log_action_probabilities = []
@@ -100,6 +101,9 @@ class WitchesPolicy(nn.Module):
         self.optimizer.zero_grad()
         loss = self.criterion(log_action_probabilities, rewards)
         loss.backward()
+        # clipping to prevent nans:
+        # see https://discuss.pytorch.org/t/proper-way-to-do-gradient-clipping/191/6
+        torch.nn.utils.clip_grad_norm_(self.parameters(), 2)
         self.optimizer.step()
         self.log_action_probabilities.clear()
         self.rewards.clear()
@@ -215,7 +219,7 @@ class PlayingPolicy(nn.Module):
         # Log-probabilites of performed actions
         # Convert probabs to 15x1 tensor
         log_action_probabilities = torch.cat(self.log_action_probabilities, dim=0)
-        rewards = self.discount_rewards(self.rewards)
+        rewards = torch.tensor(self.rewards) #self.discount_rewards(self.rewards) #
         # discountedRewards = list()
         # numRewards = len(self.rewards)
         # for i in range(numRewards):
@@ -294,26 +298,29 @@ class TestReinforce:
             action = self.my_game.players[current_player].specificIndexHand(card)
         return action
 
-    def plotHistory(self, array):
+    def plotHistory(self, array, ai_index):
         'input: [[ply1, play2, play3, pay4], ...]'
         x = np.linspace(0, len(array), num=len(array))
         y = array
         plt.xlabel("X-axis")
         plt.ylabel("Y-axis")
         plt.title("A test graph")
-        for i in range(len(y[0])):
+        for i in range(len(y[ai_index])):
             z = [pt[i] for pt in y]
             plt.plot(x, z,label = 'id %s'%i)
         plt.legend()
         plt.show()
 
     def play(self):
-        history      = []
-        total_points = [0, 0, 0, 0]
+        stdout.disable()
+        number_of_won   = [0, 0, 0, 0]
+        gameover_limit  = - 70
+        history         = []
+        ai_player_index = 0
+        nuGames         = 50
         try:
-            for j in range(0, 1000):
+            for j in range(1, 100):
                 i=0
-                nuGames = 100
                 while i<nuGames:
                     action = self.selectAction()
                     current_player = self.my_game.active_player
@@ -322,31 +329,31 @@ class TestReinforce:
                     rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
                     if round_finished:
                         # player idx of Reinforce
-                        self.notifyTrick(rewards[0])
+                        self.notifyTrick(rewards[ai_player_index])
                         print("Update rewards: ", rewards, "\n")
-                        if len(self.my_game.players[current_player].hand) == 0: # game finished
+                        if len(self.my_game.players[current_player].hand) == 0: # one game finished
                             print("update policy at end of one game!")
                             #self.playingPolicy.updatePolicy()
                             self.witchesPolicy.updatePolicy()
-                            stdout.enable()
-                            if i == nuGames-1:
-                                print("game finished with:::", self.my_game.total_rewards, "\n")
-                                history.append(self.my_game.total_rewards)
-                            stdout.disable()
+                            print(self.my_game.total_rewards)
+                            if min(self.my_game.total_rewards)<=gameover_limit:
+                                winner_idx  = np.where((self.my_game.total_rewards == max(self.my_game.total_rewards)))
+                                number_of_won[winner_idx[0][0]] +=1
+                                self.my_game.total_rewards = [0, 0, 0, 0]
+                                i+=1
+                                if i == nuGames:
+                                    stdout.enable()
+                                    print("Win Stats:", number_of_won, "at game", j*nuGames, "for:", self.witchesPolicy.lr, "\n")
+                                    history.append(number_of_won)
+                                    number_of_won = [0, 0, 0, 0]
+                                    stdout.disable()
                             self.my_game.reset_game()
-                            i+=1
-                if j>900:
-                    for i in range(len(total_points)):
-                        total_points[i] += self.my_game.total_rewards[i]
-                self.my_game.total_rewards = [0, 0, 0, 0]
-            stdout.enable()
-            print(total_points)
-            self.plotHistory(history)
+            self.plotHistory(history, ai_player_index)
         except Exception as e:
             stdout.enable()
             print("ERROR!!!!", e)
-            print(total_points)
-            self.plotHistory(history)
+            print(number_of_won)
+            self.plotHistory(history, ai_player_index)
 
 if __name__ == "__main__":
     trainer = TestReinforce()
