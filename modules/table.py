@@ -259,6 +259,15 @@ class cardTableWidget(QWidget):
         # used in test_onnx
         return tensor.detach().cpu().numpy()
 
+    def rl_onnx(self, x, path):
+        print("rl_onnx")
+        print(x)
+        print(path)
+        ort_inputs = {ort_session.get_inputs()[0].name: np.asarray(x[0], dtype=np.float32)}
+        ort_outs = ort_session.run(None, ort_inputs)
+        print(ort_outs)
+        return ort_outs
+
     def test_onnx(self, x, path):
         #print("path:", path)
         ort_session = onnxruntime.InferenceSession(path)
@@ -283,6 +292,17 @@ class cardTableWidget(QWidget):
         current_player = self.my_game.active_player
         if "RANDOM" in self.my_game.ai_player[current_player]:
             action = self.my_game.getRandomOption_()
+        elif "RL"  in self.my_game.ai_player[current_player]:
+            active_player, state, options = self.my_game.getState()
+            line = (self.my_game.getBinaryState(current_player, 0, -1.0))
+            print("RL")
+            print(state)
+            print(line)
+            action = self.rl_onnx(line, self.options["onnx_rl_path"])
+            action_idx   = int(torch_tensor[:, 0])
+            log_action_probability = torch_tensor[:, 1]
+            card   = self.my_game.players[current_player].getIndexOfCard(action_idx)
+            action = self.my_game.players[current_player].specificIndexHand(card)
         elif "NN"   in self.my_game.ai_player[current_player]:
             line = (self.my_game.getBinaryState(current_player, 0, -1.0))
             # optional for testing with pytorch:

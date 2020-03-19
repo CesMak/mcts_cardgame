@@ -2,3 +2,4 @@ __pycache__
 mcts_env
 data/*.txt
 table.pyc
+modules/models

@@ -9,3 +9,7 @@ def enable():
 
 def disable():
     sys.stdout = null
+
+def write_file(path):
+    enable()
+    sys.stdout = open(path, 'w')

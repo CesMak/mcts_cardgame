@@ -17,6 +17,7 @@ import stdout
 from gameClasses import card, deck, player, game
 import json
 import matplotlib.pyplot as plt
+import datetime
 
 # Links:
 # use logProb: https://pytorch.org/docs/stable/distributions.html
@@ -55,6 +56,8 @@ class WitchesPolicy(nn.Module):
     def forward(self, state: torch.tensor, legalCards: torch.tensor):
         state = state.resize_(180)
         probs = self.network(torch.FloatTensor(state))
+        print("\n\n\nPROBS in FORWARD:")
+        print(probs)
         probs = probs * legalCards
         distribution = Categorical(probs)               #
         action_idx = distribution.sample()              #
@@ -92,11 +95,13 @@ class WitchesPolicy(nn.Module):
     def updatePolicy(self):
         log_action_probabilities = torch.stack(self.log_action_probabilities)
         rewards  = torch.tensor(self.rewards) # self.discount_rewards(self.rewards)
-        rewards2 = self.discount_rewards_2(self.rewards)
+        #rewards2 = self.discount_rewards_2(self.rewards)
 
         print("Rewards  :" ,"%.2f "*len(self.rewards) % tuple(self.rewards))
-        print("Disc. Rew:" ,"%.2f "*len(rewards) % tuple(rewards))
-        print("Disc. Rew2:" ,"%.2f "*len(rewards2) % tuple(rewards2))
+        print("Action prob:")
+        print(log_action_probabilities)
+        #print("Disc. Rew:" ,"%.2f "*len(rewards) % tuple(rewards))
+        #print("Disc. Rew2:" ,"%.2f "*len(rewards2) % tuple(rewards2))
 
         # Optimization step
         self.optimizer.zero_grad()
@@ -104,7 +109,8 @@ class WitchesPolicy(nn.Module):
         loss.backward()
         # clipping to prevent nans:
         # see https://discuss.pytorch.org/t/proper-way-to-do-gradient-clipping/191/6
-        torch.nn.utils.clip_grad_norm_(self.parameters(), 5)
+        #torch.nn.utils.clip_grad_norm_(self.parameters(), 5)
+        torch.nn.utils.clip_grad_value_(self.parameters(), 5)
         self.optimizer.step()
         self.log_action_probabilities.clear()
         self.rewards.clear()
@@ -299,28 +305,38 @@ class TestReinforce:
             action = self.my_game.players[current_player].specificIndexHand(card)
         return action
 
-    def plotHistory(self, array, ai_index):
+    def plotHistory(self, array, ai_index, out_path):
         'input: [[ply1, play2, play3, pay4], ...]'
         x = np.linspace(0, len(array), num=len(array))
         y = array
-        plt.xlabel("X-axis")
-        plt.ylabel("Y-axis")
-        plt.title("A test graph")
+        plt.xlabel("Time")
+        plt.ylabel("Number of games won")
+        plt.title("Performance")
         for i in range(len(y[ai_index])):
             z = [pt[i] for pt in y]
-            plt.plot(x, z,label = 'id %s'%i)
+            if i == ai_index:
+                plt.plot(x, z, label = 'ai player     %s' %i)
+            else:
+                plt.plot(x, z, label = 'random player %s'%i)
         plt.legend()
+        plt.savefig(out_path+"result.png")
         plt.show()
 
+    def exportONNX(self, model, input_vector, path):
+        torch_out = torch.onnx._export(model, input_vector, path+".onnx",  export_params=True)
+
     def play(self):
-        stdout.disable()
         number_of_won   = [0, 0, 0, 0]
         gameover_limit  = - 70
         history         = []
         ai_player_index = 0
         nuGames         = 50
+        out_path        = "models/rl_policy/"
+        stdout.disable()
+        stdout.write_file(out_path+"output.txt") # contains all logging!
+        start_time   = datetime.datetime.now()
         try:
-            for j in range(1, 10000):
+            for j in range(1, 100000000):
                 i=0
                 while i<nuGames:
                     action = self.selectAction()
@@ -344,17 +360,21 @@ class TestReinforce:
                                 i+=1
                                 if i == nuGames:
                                     stdout.enable()
-                                    print("Win Stats:", number_of_won, "at game", j*nuGames, "for:", self.witchesPolicy.lr, "\n")
+                                    print("Win Stats:", number_of_won, "at game", j*nuGames, "for:", self.witchesPolicy.lr,datetime.datetime.now()-start_time, "\n")
+                                    active_player, state, options = self.my_game.getState()
+                                    state = torch.tensor(state).float().resize_(180)
+                                    path = out_path+str(self.witchesPolicy.lr)+"_"+str(j*nuGames)+"__"+str(number_of_won[ai_player_index])
+                                    self.exportONNX(self.witchesPolicy.network, state, path)
                                     history.append(number_of_won)
                                     number_of_won = [0, 0, 0, 0]
                                     stdout.disable()
                             self.my_game.reset_game()
-            self.plotHistory(history, ai_player_index)
+            self.plotHistory(history, ai_player_index, out_path)
         except Exception as e:
             stdout.enable()
             print("ERROR!!!!", e)
             print(number_of_won)
-            self.plotHistory(history, ai_player_index)
+            self.plotHistory(history, ai_player_index, out_path)
 
 if __name__ == "__main__":
     trainer = TestReinforce()
