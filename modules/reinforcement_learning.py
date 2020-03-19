@@ -35,11 +35,12 @@ class WitchesPolicy(nn.Module):
         super(WitchesPolicy, self).__init__()
         self.n_inputs  = 180 # 3*60
         self.n_outputs = 60
-        self.lr        = 0.08
+        self.lr        = 0.01
         self.network = nn.Sequential(
             nn.Linear(self.n_inputs, 500),
             nn.ReLU(),
             nn.Linear(500, 500),
+            nn.ReLU(),
             nn.ReLU(),
             nn.Linear(500, 500),
             nn.ReLU(),
@@ -103,7 +104,7 @@ class WitchesPolicy(nn.Module):
         loss.backward()
         # clipping to prevent nans:
         # see https://discuss.pytorch.org/t/proper-way-to-do-gradient-clipping/191/6
-        torch.nn.utils.clip_grad_norm_(self.parameters(), 2)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), 5)
         self.optimizer.step()
         self.log_action_probabilities.clear()
         self.rewards.clear()
@@ -319,7 +320,7 @@ class TestReinforce:
         ai_player_index = 0
         nuGames         = 50
         try:
-            for j in range(1, 100):
+            for j in range(1, 10000):
                 i=0
                 while i<nuGames:
                     action = self.selectAction()
