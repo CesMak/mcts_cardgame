@@ -92,6 +92,14 @@ tree = {root_id: {'state': state,
 * 1-15 (15=joker) 60 cards for 2 players (Test2) was done
 * included first shifting round (NN plays currently random)
 
+# Reinforcement Learning:
+* see commit **is_learning**
+* run with  `modules$ python reinforcement_learning.py`
+* player 0 is the trained player
+* 50 games played
+* half of them won by trained player!
+![is_learning](data/is_learning.png)
+
 # Statistic details / Performance
 * Stats with 12 cards of 2,13,14 of Blue Green Red Yellow and 2 Players
 	+	Tested with 50 Games, mcts player (always starts) and a **random player**
@@ -264,7 +272,6 @@ Other Card Games:
 
 
 # Example tree
-
 ```
 {(0,): {'state': [[<gameClasses.player object at 0x7f84940f26d8>, <gameClasses.player object at 0x7f84940fe6d8>, <gameClasses.player object at 0x7f84940fe710>, <gameClasses.player object at 0x7f84940fe748>], array([0., 0., 0., 0.]), [3 of B, 13 of B, 6 of B, J of Y], [3 of B, 13 of B, 6 of B, J of Y, 9 of Y, 1 of Y, 5 of Y], 20, array([0., 0., 0., 0.])], 'player': 0, 'cards_away': [], 'child': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], 'parent': None, 'n': 3, 'w': 0.0, 'q': 0.0},
 
@@ -365,3 +372,54 @@ tensor([ -3.2608,  -3.4575,  -7.6395,  -7.3477,  -5.5085,  -6.5215,  -0.8601,
         -10.8144, -10.2843,  -5.9689,  -5.6975,  -6.2563,  -9.2596,  -6.3654,
          -7.2722,  -8.8530, -10.1764, -10.1048], grad_fn=<LogSoftmaxBackward>)
 ```
+
+
+
+
+
+## Started **modules.reinforcement_learning.py** commit "beginning_reinforce"
+* why not learning anything??
+* tested with self.rewards, and discountedRewards
+* change lr, momentum, gamma (for rewards)
+* tested with -1*loss (no effect)
+* how does the learning work in general?, when initializing the network params lost?
+* see other reinforce examples:
+  * Read [here](https://towardsdatascience.com/learning-reinforcement-learning-reinforce-with-pytorch-5e8ad7fc7da0) for a basic understanding!
+    * The output of a DQN is going to be a vector of value estimates while the output of the policy gradient is going to be a probability distribution over actions.
+  * https://github.com/pytorch/examples/blob/master/reinforcement_learning/reinforce.py
+* Using a different discount function does not work as well!
+* use only positive rewards! klappt auch nicht!!!
+* Try using **another network!**
+* wie ...
+[0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.6923076923076923, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077, 0.8076923076923077]
+[tensor(-1.4820, grad_fn=<SqueezeBackward1>), tensor(-2.7397, grad_fn=<SqueezeBackward1>), tensor(-1.5664, grad_fn=<SqueezeBackward1>), tensor(-1.0297, grad_fn=<SqueezeBackward1>), tensor(-2.2039, grad_fn=<SqueezeBackward1>), tensor(-2.0374, grad_fn=<SqueezeBackward1>), tensor(-0.8260, grad_fn=<SqueezeBackward1>), tensor(-1.8811, grad_fn=<SqueezeBackward1>), tensor(-0.8654, grad_fn=<SqueezeBackward1>), tensor(-0.4187, grad_fn=<SqueezeBackward1>), tensor(-0.6031, grad_fn=<SqueezeBackward1>), tensor(-1.4244, grad_fn=<SqueezeBackward1>), tensor(-0.8793, grad_fn=<SqueezeBackward1>), tensor(-0.8207, grad_fn=<SqueezeBackward1>), tensor(-1.1921e-07, grad_fn=<SqueezeBackward1>)]
+
+
+[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.14285714285714285, -0.09523809523809523, -0.047619047619047616]
+vorher:
+[tensor([-2.6326], grad_fn=<SqueezeBackward1>), tensor([-1.0892], grad_fn=<SqueezeBackward1>), tensor([-2.5067], grad_fn=<SqueezeBackward1>), tensor([-2.5980], grad_fn=<SqueezeBackward1>), tensor([-2.2930], grad_fn=<SqueezeBackward1>), tensor([-2.2207], grad_fn=<SqueezeBackward1>), tensor([-2.1485], grad_fn=<SqueezeBackward1>), tensor([-2.0980], grad_fn=<SqueezeBackward1>), tensor([-0.6237], grad_fn=<SqueezeBackward1>), tensor([-1.1372], grad_fn=<SqueezeBackward1>), tensor([-0.7629], grad_fn=<SqueezeBackward1>), tensor([-1.1921e-07], grad_fn=<SqueezeBackward1>), tensor([-1.1921e-07], grad_fn=<SqueezeBackward1>), tensor([-0.8331], grad_fn=<SqueezeBackward1>), tensor([-1.1921e-07], grad_fn=<SqueezeBackward1>)]
+nachher:
+tensor([-2.6326e+00, -1.0892e+00, -2.5067e+00, -2.5980e+00, -2.2930e+00,
+        -2.2207e+00, -2.1485e+00, -2.0980e+00, -6.2368e-01, -1.1372e+00,
+        -7.6289e-01, -1.1921e-07, -1.1921e-07, -8.3311e-01, -1.1921e-07],
+       grad_fn=<CatBackward>)
+
+* Does not work as well!!!
+
+* Question on forum
+  * How do I know that my algorithm learns something?
+  * How to setup the network?
+  * What am I missing?
+  * What shape should losses have (15x15 matrix?)
+  * see [here](https://discuss.pytorch.org/t/reinforce-for-a-multiplayer-game/73207)
+  * geht hiermit noch aktuell am besten:         self.optimizer = optim.SGD(self.parameters(), lr=0.1)
+  * bestes ergebnis: game finished with::: [-295. -663. -729. -716.]
+  * **Should I collect batches????!!!**
+  * Problem ist dass  
+  * invalid multinomial distribution (encountering probability entry < 0)
+  * # clipping to prevent nans:
+    # see https://discuss.pytorch.org/t/proper-way-to-do-gradient-clipping/191/6
+    torch.nn.utils.clip_grad_norm_(self.parameters(), 5)
+
+* Check Game Logic:
+  * ai player plays valid cards!
