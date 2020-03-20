@@ -18,14 +18,14 @@ from gameClasses import card, deck, player, game
 import json
 import matplotlib.pyplot as plt
 import datetime
+import traceback  # full exception printing
 
 # Links:
 # use logProb: https://pytorch.org/docs/stable/distributions.html
 
 class PolicyGradientLoss(nn.Module):
     def forward(self, log_action_probabilities, discounted_rewards):
-        # log_action_probabilities -> (B, timesteps, 1)
-        # discounted_rewards -> (B, timesteps, 1)
+        # loss should decrease to 0!
         losses = -discounted_rewards * log_action_probabilities # -> (B, timesteps, 1)
         loss = losses.mean()
         print("Mean Loss  :" ,round(loss.item(), 5), "Shape losses:", losses.shape)
@@ -36,18 +36,22 @@ class WitchesPolicy(nn.Module):
         super(WitchesPolicy, self).__init__()
         self.n_inputs  = 180 # 3*60
         self.n_outputs = 60
-        self.lr        = 0.01
+        self.lr        = 0.1
+        self.hidden    = 512
         self.network = nn.Sequential(
-            nn.Linear(self.n_inputs, 500),
+            nn.Linear(self.n_inputs, self.hidden),
             nn.ReLU(),
-            nn.Linear(500, 500),
+            nn.Linear(self.hidden, self.hidden),
             nn.ReLU(),
-            nn.ReLU(),
-            nn.Linear(500, 500),
-            nn.ReLU(),
-            nn.Linear(500, self.n_outputs),
+            nn.Linear(self.hidden , self.n_outputs),
             nn.Softmax(dim=-1))
-        self.optimizer = optim.SGD(self.parameters(), lr=self.lr)
+        # SGD = stochastic gradient descent
+        # use momentum (def=0) to not stuck in local minima
+        # see: https://medium.com/@Biboswan98/optim-adam-vs-optim-sgd-lets-dive-in-8dbf1890fbdc
+        #self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=0.5, nesterov=True)
+        # Adam lr=1e-05 trains very long! Does not learn anything?
+        # Try 1e-4 and add option see link
+        self.optimizer = optim.Adam(self.parameters(), lr=1e-04, eps=1e-05, amsgrad=True)
         self.criterion = PolicyGradientLoss() #other class
 
         self.log_action_probabilities = []
@@ -56,8 +60,11 @@ class WitchesPolicy(nn.Module):
     def forward(self, state: torch.tensor, legalCards: torch.tensor):
         state = state.resize_(180)
         probs = self.network(torch.FloatTensor(state))
-        print("\n\n\nPROBS in FORWARD:")
+        #print("\n\n\nPROBS in FORWARD:")
         print(probs)
+        #print("\n\n CLAMP")
+        #print(torch.clamp(probs, 0, 1))
+        #probs = torch.clamp(probs, 0, 1) # did not work for me ....
         probs = probs * legalCards
         distribution = Categorical(probs)               #
         action_idx = distribution.sample()              #
@@ -110,7 +117,7 @@ class WitchesPolicy(nn.Module):
         # clipping to prevent nans:
         # see https://discuss.pytorch.org/t/proper-way-to-do-gradient-clipping/191/6
         #torch.nn.utils.clip_grad_norm_(self.parameters(), 5)
-        torch.nn.utils.clip_grad_value_(self.parameters(), 5)
+        #torch.nn.utils.clip_grad_value_(self.parameters(), 5) # das klappt mal gar nicht!
         self.optimizer.step()
         self.log_action_probabilities.clear()
         self.rewards.clear()
@@ -373,6 +380,7 @@ class TestReinforce:
         except Exception as e:
             stdout.enable()
             print("ERROR!!!!", e)
+            print(traceback.format_exc())
             print(number_of_won)
             self.plotHistory(history, ai_player_index, out_path)
 

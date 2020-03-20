@@ -260,13 +260,15 @@ class cardTableWidget(QWidget):
         return tensor.detach().cpu().numpy()
 
     def rl_onnx(self, x, path):
-        print("rl_onnx")
-        print(x)
-        print(path)
-        ort_inputs = {ort_session.get_inputs()[0].name: np.asarray(x[0], dtype=np.float32)}
-        ort_outs = ort_session.run(None, ort_inputs)
-        print(ort_outs)
-        return ort_outs
+        '''Input:
+        x:      180x1 list binary values
+        path    *.onnx (with correct model)'''
+        ort_session = onnxruntime.InferenceSession(path)
+        ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(x, dtype=np.float32)}
+        ort_outs    = ort_session.run(None, ort_inputs)
+        max_value = (np.amax(ort_outs))
+        result = np.where(ort_outs == np.amax(ort_outs))
+        return result[1][0]
 
     def test_onnx(self, x, path):
         #print("path:", path)
@@ -293,16 +295,16 @@ class cardTableWidget(QWidget):
         if "RANDOM" in self.my_game.ai_player[current_player]:
             action = self.my_game.getRandomOption_()
         elif "RL"  in self.my_game.ai_player[current_player]:
-            active_player, state, options = self.my_game.getState()
             line = (self.my_game.getBinaryState(current_player, 0, -1.0))
-            print("RL")
-            print(state)
-            print(line)
-            action = self.rl_onnx(line, self.options["onnx_rl_path"])
-            action_idx   = int(torch_tensor[:, 0])
-            log_action_probability = torch_tensor[:, 1]
-            card   = self.my_game.players[current_player].getIndexOfCard(action_idx)
+            action = self.rl_onnx(line[0], self.options["onnx_rl_path"])
+            card   = self.my_game.players[current_player].getIndexOfCard(action)
             action = self.my_game.players[current_player].specificIndexHand(card)
+            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
+            incolor =self.my_game.getInColor()
+            if action not in is_allowed_list_idx and incolor is not None:
+                print("RL: ACTION NOT ALLOWED!", card)
+                print("I play random possible option instead")
+                action = self.my_game.getRandomOption_()
         elif "NN"   in self.my_game.ai_player[current_player]:
             line = (self.my_game.getBinaryState(current_player, 0, -1.0))
             # optional for testing with pytorch:
