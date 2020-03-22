@@ -51,7 +51,7 @@ class WitchesPolicy(nn.Module):
         #self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=0.5, nesterov=True)
         # Adam lr=1e-05 trains very long! Does not learn anything?
         # Try 1e-4 and add option see link
-        self.optimizer = optim.Adam(self.parameters(), lr=1e-04, eps=1e-05, amsgrad=True)
+        self.optimizer = optim.Adam(self.parameters(), lr=1e-04, eps=1e-05)
         self.criterion = PolicyGradientLoss() #other class
 
         self.log_action_probabilities = []
@@ -102,13 +102,13 @@ class WitchesPolicy(nn.Module):
     def updatePolicy(self):
         log_action_probabilities = torch.stack(self.log_action_probabilities)
         rewards  = torch.tensor(self.rewards) # self.discount_rewards(self.rewards)
-        #rewards2 = self.discount_rewards_2(self.rewards)
+        #rewards = self.discount_rewards_2(self.rewards, gamma=0.9)
 
         print("Rewards  :" ,"%.2f "*len(self.rewards) % tuple(self.rewards))
         print("Action prob:")
         print(log_action_probabilities)
         #print("Disc. Rew:" ,"%.2f "*len(rewards) % tuple(rewards))
-        #print("Disc. Rew2:" ,"%.2f "*len(rewards2) % tuple(rewards2))
+        print("Disc. Rew2:" ,"%.2f "*len(rewards) % tuple(rewards))
 
         # Optimization step
         self.optimizer.zero_grad()
@@ -281,8 +281,8 @@ class TestReinforce:
     def notifyTrick(self, value):
         # der schlimmste wert ist -17 (g10, g5, r1, r2)
         # ausser wenn noch mal2 hinzukommt?! dann ist es wohl 21?!
-        #value +=21
-        normalizedReward = value / 21 # 21 zuvor sonst 26
+        value +=21
+        normalizedReward = value / 26 # 21 zuvor sonst 26
         if abs(normalizedReward)>1:
             stdout.enable()
             print(normalizedReward)
