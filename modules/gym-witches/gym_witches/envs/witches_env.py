@@ -24,19 +24,38 @@ class WitchesEnv(gym.Env):
         self.reinfo_index = self.options["type"].index("REINFO")
         self.my_game      = game(self.options)
 
+    def step_filter(self, action):
+        # action that comes in here has to be a valid one!
+        assert self.action_space.contains(action)
+        # play until ai!
+        reward = self.playRound(action)
+        done = False
+        if reward == -1000:
+            # illegal move, just do not play Card!
+            active_player, state, options = self.my_game.getState()
+            #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
+            self.my_game.total_rewards[self.reinfo_index] -=1000
+            return state[0][0].flatten(), float(reward), done, {}
+        if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
+            done = True
+        rewards, done = self.playUnitlAI()
+        active_player, state, options = self.my_game.getState()
+        self.updateTotalResult()
+        return state[0][0].flatten(), float(reward)+21, done, {}
+
     def step(self, action):
         assert self.action_space.contains(action)
         # play until ai!
         reward = self.playRound(action)
-        done = 0
-        if reward == -100:
+        done = False
+        if reward == -1000:
             # illegal move, just do not play Card!
             active_player, state, options = self.my_game.getState()
             #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
-            self.my_game.total_rewards[self.reinfo_index] -=100
+            self.my_game.total_rewards[self.reinfo_index] -=1000
             return state[0][0].flatten(), float(reward), done, {}
         if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
-            done = 1
+            done = True
         rewards, done = self.playUnitlAI()
         active_player, state, options = self.my_game.getState()
         self.updateTotalResult()
@@ -79,7 +98,7 @@ class WitchesEnv(gym.Env):
         action = self.selectAction(desired_action)
         if action is None:
             print("Illegal Move")
-            return -100
+            return -1000
         else:
             print("hallo")
 
@@ -90,7 +109,7 @@ class WitchesEnv(gym.Env):
             action = self.selectAction(reinfo_action_idx)
             if action is None:
                 # illegal move just do not play it!
-                return -100
+                return -1000
             current_player = self.my_game.active_player
             card   = self.my_game.players[current_player].hand[action]
             #print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t nuCards {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
