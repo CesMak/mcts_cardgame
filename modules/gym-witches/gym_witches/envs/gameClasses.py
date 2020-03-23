@@ -427,7 +427,8 @@ class game(object):
 		#    return self.playersGo, self.neuralNetworkInputs[self.playersGo].reshape(1,412), convertAvailableActions(self.returnAvailableActions()).reshape(1,1695)
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor())
-		return self.active_player, np.asarray(self.getmyState(self.active_player)), play_options
+		on_table, on_hand, played = self.getmyState(self.active_player)
+		return np.asarray([on_table, on_hand, played, play_options])
 
 	def getBinaryStateFirstCard(self, playeridx, action):
 		hand   = self.players[playeridx].getBinaryHand(self.players[playeridx].hand)
@@ -583,7 +584,7 @@ class game(object):
 
 		for card in self.played_cards:
 			played[self.getCardIndex(card)] = 1.00
-		return [[[on_table, on_hand, played]]]
+		return on_table, on_hand, played
 
 	def getCurrentPlayerState(self, playeridx):
 		# get Current State as bool (binary) values

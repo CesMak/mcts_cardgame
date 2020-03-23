@@ -13,7 +13,7 @@ class WitchesEnv(gym.Env):
     def __init__(self):
         self.seed()
         self.action_space = gym.spaces.Discrete(60)
-        self.observation_space = gym.spaces.Discrete(180)
+        self.observation_space = gym.spaces.Discrete(240)
 
         # Create the game:
         self.options = {}
@@ -30,46 +30,46 @@ class WitchesEnv(gym.Env):
         # play until ai!
         reward = self.playRound(action)
         done = False
-        if reward == -1000:
+        if reward == -100:
             # illegal move, just do not play Card!
-            active_player, state, options = self.my_game.getState()
+            state = self.my_game.getState()
             #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
-            self.my_game.total_rewards[self.reinfo_index] -=1000
-            return state[0][0].flatten(), float(reward), done, {}
+            self.my_game.total_rewards[self.reinfo_index] -=100
+            return state.flatten(), float(reward), done, {}
         if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
             done = True
         rewards, done = self.playUnitlAI()
-        active_player, state, options = self.my_game.getState()
+        state = self.my_game.getState()
         self.updateTotalResult()
-        return state[0][0].flatten(), float(reward)+21, done, {}
+        return state.flatten(), float(reward)+21, done, {}
 
     def step(self, action):
         assert self.action_space.contains(action)
         # play until ai!
         reward = self.playRound(action)
         done = False
-        if reward == -1000:
+        if reward == -100:
             # illegal move, just do not play Card!
-            active_player, state, options = self.my_game.getState()
+            state= self.my_game.getState()
             #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
-            self.my_game.total_rewards[self.reinfo_index] -=1000
-            return state[0][0].flatten(), float(reward), done, {}
+            self.my_game.total_rewards[self.reinfo_index] -=100
+            return state.flatten(), float(reward), done, {}
         if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
             done = True
         rewards, done = self.playUnitlAI()
-        active_player, state, options = self.my_game.getState()
+        state= self.my_game.getState()
         self.updateTotalResult()
-        return state[0][0].flatten(), float(reward)+21, done, {}
+        return state.flatten(), float(reward)+21, done, self.number_of_won
 
     def reset(self):
         # return nump.nd array 180x1
-        # state = on_table, on_hand, played
+        # state = on_table, on_hand, played, options for current player!
         #print("\nReset Game")
         self.my_game.reset_game()
         # Play until AI!
         self.playUnitlAI()
-        active_player, state, options = self.my_game.getState()
-        return state[0][0].flatten()
+        state = self.my_game.getState()
+        return state.flatten()
 
     def render(self, mode='human', close=False):
         ...
@@ -98,7 +98,7 @@ class WitchesEnv(gym.Env):
         action = self.selectAction(desired_action)
         if action is None:
             print("Illegal Move")
-            return -1000
+            return -100
         else:
             print("hallo")
 
@@ -109,7 +109,7 @@ class WitchesEnv(gym.Env):
             action = self.selectAction(reinfo_action_idx)
             if action is None:
                 # illegal move just do not play it!
-                return -1000
+                return -100
             current_player = self.my_game.active_player
             card   = self.my_game.players[current_player].hand[action]
             #print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t nuCards {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
@@ -148,11 +148,7 @@ class WitchesEnv(gym.Env):
              winner_idx  = np.where((self.my_game.total_rewards == max(self.my_game.total_rewards)))
              self.number_of_won[winner_idx[0][0]] +=1
              self.my_game.total_rewards = np.zeros(4,)
-        if self.number_of_won[self.reinfo_index]>0:
-            print(self.number_of_won)
-            self.number_of_won =  np.zeros(4,)
-        if max(self.number_of_won)>10000:
-            print(self.number_of_won)
+        if max(self.number_of_won)>1:
             self.number_of_won =  np.zeros(4,)
 
 # import gym, ray

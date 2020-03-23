@@ -12,7 +12,7 @@ import onnx
 import onnxruntime
 
 import numpy as np
-
+import os
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ## # TODO:
@@ -70,14 +70,16 @@ class ActorMod(nn.Module):
         x = self.l1(input)
         x = self.l1_tanh(x)
         x = self.l2(x)
-        #return x.softmax(dim=-1)
         out1 = self.l2_tanh(x) # 64x1
-        out2 = input[60:120]   # 60x1 this are the cards on the hand of the player!
-        print(input.shape, out1.shape, out2.shape)
-        output =torch.cat( [out1, out2], 0)
-         #124x1 # do I need: x = torch.cat([layer_outputs[i] for i in layer_i], 1)
+        if len(input.shape)==1:
+            out2 = input[180:240]   # 60x1 this are the available options of the active player!
+            output =torch.cat( [out1, out2], 0)
+        else:
+            out2 = input[:, 180:240]
+            output =torch.cat( [out1, out2], 1) #how to do that?
         x = self.l3(output)
         return x.softmax(dim=-1)
+
 
 class ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var):
@@ -86,15 +88,16 @@ class ActorCritic(nn.Module):
         # actor
         #TODO see question: https://discuss.pytorch.org/t/pytorch-multiple-inputs-in-sequential/74040
         tmp = ActorMod(state_dim, action_dim, n_latent_var)
-        self.action_layer = nn.Sequential(
-                nn.Linear(state_dim, n_latent_var),
-                nn.Tanh(),
-                nn.Linear(n_latent_var, n_latent_var),
-                nn.Tanh(),
-                nn.Linear(n_latent_var, action_dim),
-                # here combine layers!
-                nn.Softmax(dim=-1)
-                )
+        self.action_layer = tmp
+         # nn.Sequential(
+         #        nn.Linear(state_dim, n_latent_var),
+         #        nn.Tanh(),
+         #        nn.Linear(n_latent_var, n_latent_var),
+         #        nn.Tanh(),
+         #        nn.Linear(n_latent_var, action_dim),
+         #        # here combine layers!
+         #        nn.Softmax(dim=-1)
+         #        )
 
         # critic
         self.value_layer = nn.Sequential(
@@ -105,11 +108,12 @@ class ActorCritic(nn.Module):
                 nn.Linear(n_latent_var, 1)
                 )
 
-    def forward(self):
-        raise NotImplementedError
+    def forward(self, state_input):
+        return torch.tensor(self.act(state_input, None))
 
     def act(self, state, memory):
-        state = torch.from_numpy(state).float().to(device)
+        if type(state) is np.ndarray:
+            state = torch.from_numpy(state).float().to(device)
         action_probs = self.action_layer(state)
         # here make a filter for only possible actions!
         #probs = probs * memory.leagalCards
@@ -117,9 +121,10 @@ class ActorCritic(nn.Module):
 
         action = dist.sample()
 
-        memory.states.append(state)
-        memory.actions.append(action)
-        memory.logprobs.append(dist.log_prob(action))
+        if memory is not None:
+            memory.states.append(state)
+            memory.actions.append(action)
+            memory.logprobs.append(dist.log_prob(action))
 
         return action.item()
 
@@ -162,7 +167,7 @@ class PPO:
         # Normalizing the rewards:
         rewards = torch.tensor(memory.rewards).to(device)                     # use here memory.rewards
         #rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)  # commented out
-        rewards = rewards/1000
+        rewards = rewards/100
 
         # convert list to tensor
         old_states = torch.stack(memory.states).to(device).detach()
@@ -181,7 +186,7 @@ class PPO:
             advantages = rewards - state_values.detach()
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
-            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy
+            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.05*dist_entropy
 
             # take gradient step
             self.optimizer.zero_grad()
@@ -205,6 +210,12 @@ def main():
     env = gym.make(env_name)
     state_dim = env.observation_space.n
     action_dim = env.action_space.n
+
+    log_path      = "logging.txt"
+    try:
+        os.remove(os.getcwd()+"/"+log_path)
+    except:
+        print("No Logging to be removed!")
     render        = False
     solved_reward = 230         # stop training if avg_reward > solved_reward
     log_interval  = 50           # print avg reward in the interval
@@ -214,11 +225,11 @@ def main():
     nu_games        = 5             # max game steps!
     n_latent_var    = 512            # number of variables in hidden layer
     update_timestep = 5             # update policy every n timesteps befor:
-    lr              = 25*1e-5       # in big2game: 25*1e-5
+    lr              = 25*1e-7       # in big2game: 25*1e-5
     gamma           = 0.99
     betas           = (0.9, 0.999)
     K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
-    eps_clip        = 0.4             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
+    eps_clip        = 0.1             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
     random_seed     = None
     #############################################
 
@@ -239,69 +250,57 @@ def main():
     invalid_moves = 0
     total_number_of_games_played = 0
     total_rewards  = 0
+    total_games_won = np.zeros(4,)
 
     # training loop
     for i_episode in range(1, max_episodes+1):
-        for t in range(nu_games):
-            timestep += 1
-            state = env.reset()
-            done  = 0
-            while not done:
-                # Running policy_old:
-                # state has to be right before the AI Plays!
-                action = ppo.policy_old.act(state, memory)
+        timestep += 1
+        state = env.reset()
+        done  = 0
+        while not done:
+            # Running policy_old:
+            # state has to be right before the AI Plays!
+            action = ppo.policy_old.act(state, memory)
 
-                # this should be the reward for the above action
-                # this is the new state! when the ai player is again
-                state, reward, done, _ = env.step(action)
-                total_rewards += reward
-                if reward==-1000:
-                    invalid_moves +=1
+            # this should be the reward for the above action
+            # this is the new state! when the ai player is again
+            state, reward, done, nu_games_won = env.step(action)
+            if reward==-100:
+                invalid_moves +=1
 
-                # Saving reward and is_terminal:
-                memory.rewards.append(reward)
-                memory.is_terminals.append(done)
+            # if done and invalid_moves==0:
+            #     print("Export ONNX:::")
+            #     exportONNX(ppo.policy, torch.rand(240), str(reward_mean))
 
-            total_number_of_games_played+=1
+            total_rewards += reward
+            memory.rewards.append(reward)
+            memory.is_terminals.append(done)
 
-            # update if its time
-            if timestep % update_timestep == 0:
-                reward_mean, wrong_moves = ppo.update(memory)
-                total_rewards_of_last_5_games = total_rewards/update_timestep
-                if (total_rewards/update_timestep)>0:
-                    print("HALLO!!!!")
-                    torch.save(ppo.policy.state_dict(), './PPO_{}.pth'.format(env_name))
-                # total_rewards per game should be maximized!!!!
-                aaa = ('Game {}\t total_rewards_per_game {}\t invalid_moves_per_game: {} \t reward_mean: {:0.5}\t{:0.3} \t{}\n'.format(total_number_of_games_played, total_rewards_of_last_5_games, invalid_moves/update_timestep, reward_mean, (reward_mean*1000)-21, datetime.datetime.now()-start_time))
-                print(aaa)
-                invalid_moves                 = 0
-                total_rewards = 0
-                #exportONNX(ppo.policy, torch.rand(180), str(reward_mean))
-                with open("hallo.txt", "a") as myfile:
-                    myfile.write(aaa)
-                memory.clear_memory()
-                timestep = 0
+        total_number_of_games_played+=1
+        total_games_won +=nu_games_won
 
-            running_reward += reward
-
-
-        avg_length += t
-
-        # stop training if avg_reward > solved_reward
-        if running_reward > (log_interval*solved_reward):
-            print("########## Solved! ##########")
-            torch.save(ppo.policy.state_dict(), './PPO_{}.pth'.format(env_name))
-            break
+        # update if its time
+        if timestep % update_timestep == 0:
+            reward_mean, wrong_moves = ppo.update(memory)
+            memory.clear_memory()
+            timestep = 0
 
         # logging
         if i_episode % log_interval == 0:
-            avg_length = int(avg_length/log_interval)
-            running_reward = int((running_reward/log_interval))
-            #stdout.enable()
-
-            #stdout.disable()
-            running_reward = 0
-            avg_length = 0
+            total_reward_per_game_positive = total_rewards/log_interval
+            per_game_reward = total_reward_per_game_positive-15*21
+            games_won = str(np.array2string(total_games_won))
+            # total_rewards per game should be maximized!!!!
+            aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
+            print(aaa)
+            if games_won[1]>40:
+                 print("Export ONNX:::")
+                 exportONNX(ppo.policy, torch.rand(240), str(per_game_reward))
+            invalid_moves = 0
+            total_rewards = 0
+            total_games_won = np.zeros(4,)
+            with open(log_path, "a") as myfile:
+                myfile.write(aaa)
 
 if __name__ == '__main__':
     main()
