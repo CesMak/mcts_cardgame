@@ -61,9 +61,9 @@ class ActorMod(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var):
         super(ActorMod, self).__init__()
         self.l1      = nn.Linear(state_dim, n_latent_var)
-        self.l1_tanh = nn.Tanh()
+        self.l1_tanh = nn.PReLU()
         self.l2      = nn.Linear(n_latent_var, n_latent_var)
-        self.l2_tanh = nn.Tanh()
+        self.l2_tanh = nn.PReLU()
         self.l3      = nn.Linear(n_latent_var+60, action_dim)
 
     def forward(self, input):
@@ -102,9 +102,9 @@ class ActorCritic(nn.Module):
         # critic
         self.value_layer = nn.Sequential(
                 nn.Linear(state_dim, n_latent_var),
-                nn.Tanh(),
+                nn.PReLU(),#prelu
                 nn.Linear(n_latent_var, n_latent_var),
-                nn.Tanh(),
+                nn.PReLU(),
                 nn.Linear(n_latent_var, 1)
                 )
 
@@ -116,9 +116,8 @@ class ActorCritic(nn.Module):
             state = torch.from_numpy(state).float().to(device)
         action_probs = self.action_layer(state)
         # here make a filter for only possible actions!
-        #probs = probs * memory.leagalCards
+        #action_probs = action_probs *state[120:180]
         dist = Categorical(action_probs)
-
         action = dist.sample()
 
         if memory is not None:
@@ -200,6 +199,63 @@ class PPO:
 def exportONNX(model, input_vector, path):
     torch_out = torch.onnx._export(model, input_vector, path+".onnx",  export_params=True)
 
+def getOnnxAction(path, x):
+        '''Input:
+        x:      240x1 list binary values
+        path    *.onnx (with correct model)'''
+        ort_session = onnxruntime.InferenceSession(path)
+        print(ort_session)
+        print(ort_session)
+        print(ort_session.get_inputs())
+        print(ort_session.get_inputs()[0].name)
+        print(np.asarray(x, dtype=np.float32))
+        ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(x, dtype=np.float32)}
+        ort_outs    = ort_session.run(None, ort_inputs)
+        print(ort_outs)
+        return np.asarray(ort_outs)[0]
+
+def testOnnxModel(path):
+    env_name = "Witches-v0"
+    env = gym.make(env_name)
+    for i in range(100):
+        done  = 0
+        state = env.reset()
+        total_games_won = np.zeros(4,)
+        while not done:
+            print(state)
+            action = getOnnxAction(path, state)
+            print(action)
+            state, reward, done, nu_games_won = env.step(action)
+            if reward == -100:
+                done = True
+        #total_games_won+=nu_games_won
+        print(total_games_won)
+
+def test_trained_model(path):
+    env_name = "Witches-v0"
+    # creating environment
+    env = gym.make(env_name)
+    ppo_test = PPO(240, 60, 128, 25*1e-7, (0.9, 0.999), 0.99, 5, 0.1)
+    memory = Memory()
+    ppo_test.policy_old.load_state_dict(torch.load(path))
+    total_games_won = np.zeros(4,)
+    total_nu_of_wrong_moves = 0
+    max_games               = 1000
+    #torch.onnx.export(ppo_test.policy, torch.rand(240), "onnx_model_name.onnx")
+
+    # Plays 100 games (one game is finished after 70 Points)
+    # If an invalid move is played, the ai has to choose again! ??? What is exactly done in this case?
+    # Good Stats: [163. 448. 193. 196.]
+    while np.sum(total_games_won)<max_games:
+        done  = False
+        state = env.reset()
+        while not done:
+            action = ppo_test.policy_old.act(state, memory)
+            state, reward, done, nu_games_won= env.step(action)
+            if reward==-100:
+                total_nu_of_wrong_moves+=1
+        total_games_won +=nu_games_won
+    print(total_games_won, "invalid_moves:", total_nu_of_wrong_moves)
 
 def main():
     start_time = datetime.datetime.now()
@@ -223,7 +279,7 @@ def main():
     # TODO DO NOT RESET AFTER FIXED VALUE BUT AT END OF Game
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
     nu_games        = 5             # max game steps!
-    n_latent_var    = 512            # number of variables in hidden layer
+    n_latent_var    = 64            # number of variables in hidden layer
     update_timestep = 5             # update policy every n timesteps befor:
     lr              = 25*1e-7       # in big2game: 25*1e-5
     gamma           = 0.99
@@ -293,9 +349,10 @@ def main():
             # total_rewards per game should be maximized!!!!
             aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if games_won[1]>40:
+            if total_games_won[1]>40:
                  print("Export ONNX:::")
-                 exportONNX(ppo.policy, torch.rand(240), str(per_game_reward))
+                 torch.save(ppo.policy.state_dict(), './PPO_{}_{}.pth'.format(env_name, total_games_won[1]))
+                 #exportONNX(ppo.policy, torch.rand(240), str(per_game_reward))
             invalid_moves = 0
             total_rewards = 0
             total_games_won = np.zeros(4,)
@@ -303,4 +360,6 @@ def main():
                 myfile.write(aaa)
 
 if __name__ == '__main__':
-    main()
+    #main()
+    test_trained_model("PPO_Witches-v0_41.0222.pth")# PPO_Witches-v0.
+    #testOnnxModel("onnx_model_name.onnx") #-4.5.onnx onnx_model_name.onnx

@@ -24,6 +24,17 @@ def read_file(path):
 def plot(array, out_path):
     '[games, mean_reward, mean_inv_moves]'
     games, mean_reward, mean_inv_moves, won_games = array
+
+    find_indx = 1.0
+    try:
+        idx = mean_inv_moves.index(find_indx)
+        games = games[idx:-1]
+        mean_reward = mean_reward[idx:-1]
+        mean_inv_moves = mean_inv_moves[idx:-1]
+        for i in range(len(won_games)):
+            won_games[i] = won_games[i][idx:-1]
+    except Exception as e:
+        print(e)
     min_moves_idx = mean_inv_moves.index(min(mean_inv_moves))
     fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, sharex=True)
     fig.suptitle('Invalid moves per game')
