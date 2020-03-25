@@ -25,7 +25,7 @@ def plot(array, out_path):
     '[games, mean_reward, mean_inv_moves]'
     games, mean_reward, mean_inv_moves, won_games = array
 
-    find_indx = 1.0
+    find_indx = 100.0
     try:
         idx = mean_inv_moves.index(find_indx)
         games = games[idx:-1]

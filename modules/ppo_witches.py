@@ -185,7 +185,7 @@ class PPO:
             advantages = rewards - state_values.detach()
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
-            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.05*dist_entropy
+            loss = -torch.min(surr1, surr2) + 0.5*self.MseLoss(state_values, rewards) - 0.01*dist_entropy
 
             # take gradient step
             self.optimizer.zero_grad()
@@ -204,43 +204,41 @@ def getOnnxAction(path, x):
         x:      240x1 list binary values
         path    *.onnx (with correct model)'''
         ort_session = onnxruntime.InferenceSession(path)
-        print(ort_session)
-        print(ort_session)
-        print(ort_session.get_inputs())
-        print(ort_session.get_inputs()[0].name)
-        print(np.asarray(x, dtype=np.float32))
         ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(x, dtype=np.float32)}
         ort_outs    = ort_session.run(None, ort_inputs)
-        print(ort_outs)
         return np.asarray(ort_outs)[0]
 
 def testOnnxModel(path):
     env_name = "Witches-v0"
     env = gym.make(env_name)
-    for i in range(100):
-        done  = 0
+
+    total_games_won = np.zeros(4,)
+    total_nu_of_wrong_moves = 0
+    max_games               = 10
+    total_stats             = None
+
+    while np.sum(total_games_won)<max_games:
+        done  = False
         state = env.reset()
-        total_games_won = np.zeros(4,)
         while not done:
-            print(state)
             action = getOnnxAction(path, state)
-            print(action)
             state, reward, done, nu_games_won = env.step(action)
-            if reward == -100:
-                done = True
-        #total_games_won+=nu_games_won
-        print(total_games_won)
+            if reward==-100:
+                total_nu_of_wrong_moves+=1
+        total_games_won +=nu_games_won
+    print(total_games_won[1]/max_games*100, "% won", total_games_won, "invalid_moves:", total_nu_of_wrong_moves, total_stats)
 
 def test_trained_model(path):
     env_name = "Witches-v0"
     # creating environment
     env = gym.make(env_name)
-    ppo_test = PPO(240, 60, 128, 25*1e-7, (0.9, 0.999), 0.99, 5, 0.1)
+    ppo_test = PPO(240, 60, 256, 25*1e-7, (0.9, 0.999), 0.99, 5, 0.1)
     memory = Memory()
     ppo_test.policy_old.load_state_dict(torch.load(path))
     total_games_won = np.zeros(4,)
     total_nu_of_wrong_moves = 0
     max_games               = 1000
+    total_stats             = None
     #torch.onnx.export(ppo_test.policy, torch.rand(240), "onnx_model_name.onnx")
 
     # Plays 100 games (one game is finished after 70 Points)
@@ -251,11 +249,11 @@ def test_trained_model(path):
         state = env.reset()
         while not done:
             action = ppo_test.policy_old.act(state, memory)
-            state, reward, done, nu_games_won= env.step(action)
+            state, reward, done, nu_games_won = env.step(action)
             if reward==-100:
                 total_nu_of_wrong_moves+=1
         total_games_won +=nu_games_won
-    print(total_games_won, "invalid_moves:", total_nu_of_wrong_moves)
+    print(total_games_won[1]/max_games*100, "% won", total_games_won, "invalid_moves:", total_nu_of_wrong_moves, total_stats)
 
 def main():
     start_time = datetime.datetime.now()
@@ -279,13 +277,13 @@ def main():
     # TODO DO NOT RESET AFTER FIXED VALUE BUT AT END OF Game
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
     nu_games        = 5             # max game steps!
-    n_latent_var    = 64            # number of variables in hidden layer
+    n_latent_var    = 256            # number of variables in hidden layer
     update_timestep = 5             # update policy every n timesteps befor:
-    lr              = 25*1e-7       # in big2game: 25*1e-5
+    lr              = 25*1e-5       # in big2game: 25*1e-5
     gamma           = 0.99
     betas           = (0.9, 0.999)
     K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
-    eps_clip        = 0.1             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
+    eps_clip        = 0.4             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
     random_seed     = None
     #############################################
 
@@ -323,11 +321,7 @@ def main():
             state, reward, done, nu_games_won = env.step(action)
             if reward==-100:
                 invalid_moves +=1
-
-            # if done and invalid_moves==0:
-            #     print("Export ONNX:::")
-            #     exportONNX(ppo.policy, torch.rand(240), str(reward_mean))
-
+                
             total_rewards += reward
             memory.rewards.append(reward)
             memory.is_terminals.append(done)
@@ -349,9 +343,9 @@ def main():
             # total_rewards per game should be maximized!!!!
             aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if total_games_won[1]>40:
-                 print("Export ONNX:::")
-                 torch.save(ppo.policy.state_dict(), './PPO_{}_{}.pth'.format(env_name, total_games_won[1]))
+            if per_game_reward>-5:
+                 #print("Export ONNX:::")
+                 torch.save(ppo.policy.state_dict(), './PPO_{}_{}_{}.pth'.format(env_name, per_game_reward, total_games_won[1]))
                  #exportONNX(ppo.policy, torch.rand(240), str(per_game_reward))
             invalid_moves = 0
             total_rewards = 0
@@ -361,5 +355,7 @@ def main():
 
 if __name__ == '__main__':
     #main()
-    test_trained_model("PPO_Witches-v0_41.0222.pth")# PPO_Witches-v0.
+    # PPO_Witches-v0_41.0222.pth  (128) 49.7 % won [161. 497. 170. 172.] invalid_moves: 407 None   # Trained without reset
+    # PPO_Witches-v0_7.0.pth      (256) 51.0 % won [151. 510. 166. 173.] invalid_moves: 244 None   # Trained with reset
+    test_trained_model("PPO_Witches-v0_7.0.pth")# PPO_Witches-v0. # PPO_Witches-v0_41.0222.pth 64
     #testOnnxModel("onnx_model_name.onnx") #-4.5.onnx onnx_model_name.onnx

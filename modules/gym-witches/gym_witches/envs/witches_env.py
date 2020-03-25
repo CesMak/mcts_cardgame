@@ -18,6 +18,7 @@ class WitchesEnv(gym.Env):
         # Create the game:
         self.options = {}
         self.number_of_won = [0, 0, 0, 0]
+        self.saved_results = np.zeros(4,)
         self.options_file_path =  "../data/reinforce_options.json"
         with open(self.options_file_path) as json_file:
             self.options = json.load(json_file)
@@ -53,7 +54,7 @@ class WitchesEnv(gym.Env):
             state= self.my_game.getState()
             #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
             self.my_game.total_rewards[self.reinfo_index] -=100
-            return state.flatten(), float(reward), done, {}
+            return state.flatten(), float(reward), True, np.zeros(4,)
         if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
             done = True
         rewards, done = self.playUnitlAI()
@@ -144,12 +145,14 @@ class WitchesEnv(gym.Env):
 
     def updateTotalResult(self):
         gameover_limit = -70
+        self.number_of_won =  np.zeros(4,)
         if min(self.my_game.total_rewards)<=gameover_limit:
              winner_idx  = np.where((self.my_game.total_rewards == max(self.my_game.total_rewards)))
              self.number_of_won[winner_idx[0][0]] +=1
+             self.saved_results         += self.my_game.total_rewards
              self.my_game.total_rewards = np.zeros(4,)
-        if max(self.number_of_won)>1:
-            self.number_of_won =  np.zeros(4,)
+        #if max(self.number_of_won)>=1:
+
 
 # import gym, ray
 # from ray.rllib.agents import ppo
