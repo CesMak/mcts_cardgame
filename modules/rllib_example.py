@@ -34,7 +34,7 @@ class WitchesEnv(gym.Env):
 
         print("End of WitchesEnv")
         # Start the first game
-        # self.reset()
+        self.reset()
 
     def reset(self):
         print("INSIDE RESET \n\n")
