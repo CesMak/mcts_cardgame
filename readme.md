@@ -105,6 +105,28 @@ tree = {root_id: {'state': state,
 * half of them won by trained player!
 ![is_learning](data/is_learning.png)
 
+## Details reinforcement learning
+* Clipping probs = torch.clamp(probs, 0, 1) # did not work for me
+* torch.nn.utils.clip_grad_norm_(self.parameters(), 5) in updatePolicy
+* working adam see commit **working_adam**
+* Problem for SGD and adam (what is the reason?!)
+  ```
+  ERROR!!!! invalid multinomial distribution (encountering probability entry < 0)
+  ```
+  * So um die 22 gewinnrate rum lokales minimum erreicht?!
+  * use different lr !
+  * use clipping
+  * use clamping?!
+* TEST PPO Pytorch from [here](https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py) [expl](https://www.youtube.com/watch?v=5P7I-xPq8u8&t=208s)
+  * Return = discounted sum of rewards (gamma = Interest in financial get Money NOW! greedy or not)
+  * Value Function tries to estimate final reward in this episode
+  * advantage estimate = discounted reward - baseline estimate (by value function)
+    * >0 Gradient is positive  Increase action probabilities
+  * Running Gradient Descent on a single batch destroys your policy (cause of NOISE) -> Trust Region is required!
+* Incooperate Loss from [here](https://github.com/henrycharlesworth/big2_PPOalgorithm/blob/master/PPONetwork.py)
+* Test nn.Tanh(), as activation function! see [here](https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py)
+* Test Discounted rewards (set gamma to not greedy)
+
 # Statistic details / Performance
 * Stats with 12 cards of 2,13,14 of Blue Green Red Yellow and 2 Players
 	+	Tested with 50 Games, mcts player (always starts) and a **random player**

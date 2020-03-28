@@ -128,7 +128,7 @@ class cardTableWidget(QWidget):
         self.play_2_state  = self.addPlayerLabel(200+120, 250, "")
         self.play_3_state  = self.addPlayerLabel(200+120*2, 250, "")
         self.play_4_state  = self.addPlayerLabel(200+120*3, 250, "")
-        self.game_indicator= self.addPlayerLabel(700, 5, "Game: ")
+        self.game_indicator= self.addPlayerLabel(680, 5, "Game: ")
 
         playbtn = QPushButton('Start', self)
         playbtn.resize(50, 32)
@@ -216,7 +216,6 @@ class cardTableWidget(QWidget):
 
         #3. Deal Cards:
         for i in range(len(self.my_game.players)):
-            #TODO give them wrong sided!
             self.deal_cards(self.my_game.players[i].hand, i, fdown=self.options["faceDown"][i])
 
         # 4. Setup Names:
@@ -251,6 +250,8 @@ class cardTableWidget(QWidget):
             offhand_cards = [item for sublist in  self.my_game.players[i].offhand for item in sublist]
             self.deal_cards(offhand_cards, i)
             i +=1
+        self.view.viewport().repaint()
+        time.sleep(self.options["sleepTime"]*20)
         self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
         if self.options["nu_games"] > self.my_game.nu_games_played+1:
             self.nextRound_clicked()
@@ -295,8 +296,8 @@ class cardTableWidget(QWidget):
         if "RANDOM" in self.my_game.ai_player[current_player]:
             action = self.my_game.getRandomOption_()
         elif "RL"  in self.my_game.ai_player[current_player]:
-            line = (self.my_game.getBinaryState(current_player, 0, -1.0))
-            action = self.rl_onnx(line[0], self.options["onnx_rl_path"])
+            line = self.my_game.getStateEND()
+            action = self.rl_onnx(line.flatten(), self.options["onnx_rl_path"])
             card   = self.my_game.players[current_player].getIndexOfCard(action)
             action = self.my_game.players[current_player].specificIndexHand(card)
             is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
@@ -384,7 +385,7 @@ class cardTableWidget(QWidget):
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
             rewards, round_finished = self.playVirtualCard(action)
-            if rewards is not None:
+            if len(self.my_game.players[self.my_game.active_player].hand)==0:
                 self.checkFinished()
                 self.showResult(rewards)
                 return

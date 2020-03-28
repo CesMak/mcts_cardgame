@@ -52,6 +52,7 @@ class WitchesPolicy(nn.Module):
         # Adam lr=1e-05 trains very long! Does not learn anything?
         # Try 1e-4 and add option see link
         self.optimizer = optim.Adam(self.parameters(), lr=1e-04, eps=1e-05)
+
         self.criterion = PolicyGradientLoss() #other class
 
         self.log_action_probabilities = []
