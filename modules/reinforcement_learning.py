@@ -51,7 +51,7 @@ class WitchesPolicy(nn.Module):
         #self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=0.5, nesterov=True)
         # Adam lr=1e-05 trains very long! Does not learn anything?
         # Try 1e-4 and add option see link
-        self.optimizer = optim.Adam(self.parameters(), lr=1e-04, eps=1e-05, amsgrad=True)
+        self.optimizer = optim.Adam(self.parameters(), lr=1e-05, eps=1e-05, amsgrad=False)
         self.criterion = PolicyGradientLoss() #other class
 
         self.log_action_probabilities = []
