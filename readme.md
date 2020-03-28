@@ -1,4 +1,4 @@
-![mcts_witches](data/82_winner_ppo.png)
+![mcts_witches](data/imgs/82_winner_ppo.png)
 
 To play a card as HUMAN **double click** the card.
 
@@ -15,22 +15,22 @@ See file **gui_options.json**
 ```json
 {
   "names": ["Laura", "Alfons", "Frank", "Lea"],
-  "type": ["NN", "RANDOM", "RANDOM", "NN"],  ## [HUMAN, RANDOM, NN, MCTS, RL]
-  "expo": [500, 500, 500, 500],              ## -> adjustements only for MCTS
-  "depths": [300, 300, 300, 300],            ## -> adjustements only for MCTS
-  "itera": [5000, 5000, 5000, 5000],         ## -> adjustements only for MCTS
-  "faceDown": [false, false, false, false],  ## [true, false] If Cards are visible or not
-  "sleepTime": 0.001,                        ## Time to wait between 2 moves
-  "model_path_for_NN": "data/test.pth",      ## Input path for Neuronal Network
-  "nu_games": 100,                           ## Number of Games
-  "shifting_phase": 20,                      ## TODO
-  "mcts_save_actions": false,                ## -> adjustements only for MCTS
-  "mcts_actions_path": "data/actions_strong44__mcts.txt",  ## -> adjustements only for MCTS
-  "automatic_mode": false,                   ## [true, false]  true: play a pickle game_play
-  "save_game_play": false,                   ## [true, false]  true: save a pickle game_play
-  "game_play_path": "data/game_play.pkl",    ## *.pkl          path for pickle game_play
-  "onnx_path": "data/model_long_training.pth.onnx"  ### [model_long_training.pth.onnx, model.pth.onnx, actions_all.pth.onnx]
-  "onnx_rl_path": "data/rl_path4_82.onnx"    ## [rl_path1, rl_path2, rl_path3, rl_path4_82] path PPO trained
+  "type": ["NN", "RANDOM", "RANDOM", "NN"],  "[HUMAN, RANDOM, NN, MCTS, RL]"
+  "expo": [500, 500, 500, 500],              "-> adjustements only for MCTS"
+  "depths": [300, 300, 300, 300],            "-> adjustements only for MCTS"
+  "itera": [5000, 5000, 5000, 5000],         " -> adjustements only for MCTS"
+  "faceDown": [false, false, false, false],  " [true, false] If Cards are visible or not"
+  "sleepTime": 0.001,                        " Time to wait between 2 moves"
+  "model_path_for_NN": "data/test.pth",      " Input path for Neuronal Network"
+  "nu_games": 100,                           " Number of Games"
+  "shifting_phase": 20,                      " TODO"
+  "mcts_save_actions": false,                " -> adjustements only for MCTS"
+  "mcts_actions_path": "data/actions_strong44__mcts.txt",  " -> adjustements only for MCTS"
+  "automatic_mode": false,                   " [true, false]  true: play a pickle game_play"
+  "save_game_play": false,                   " [true, false]  true: save a pickle game_play"
+  "game_play_path": "data/game_play.pkl",    " *.pkl          path for pickle game_play"
+  "onnx_path": "data/model_long_training.pth.onnx"  "[model_long_training.pth.onnx, model.pth.onnx, actions_all.pth.onnx]"
+  "onnx_rl_path": "data/rl_path4_82.onnx"    " [rl_path1, rl_path2, rl_path3, rl_path4_82] path PPO trained"
 }
 ```
 
@@ -45,7 +45,7 @@ See file **gui_options.json**
     + *itera*: Max number of iterations (the lower the faster)
   * RL     : Reinforcement Learning
     + An actor-critic Proximal Policy Optimization (PPO) Reinforcement Learning algorithm.
-    + Generate trained model using the **modules/ppo_witches** and the **modules/gym-witches**
+    + Generate trained model using the **[modules/ppo_witches](https://github.com/CesMak/mcts_cardgame/blob/master/modules/ppo_witches.py)** and the **[modules/gym-witches](https://github.com/CesMak/mcts_cardgame/tree/master/modules/gym-witches)**
     + *onnx_rl_path*: Path to the trained model
         + rl_path4_82.onnx (is the stronges one), wins 80% of the games (against only RANDOM players)
         + trained for 2h on single cpu, i5, no vectorized environment
