@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 import gym
-import gym_witches
+import gym_witches # pip install -e .  https://medium.com/@apoddar573/making-your-own-custom-environment-in-gym-c3b65ff8cdaa
 import stdout
 import datetime
 
@@ -507,7 +507,7 @@ def main():
 
             # this should be the reward for the above action
             # this is the new state! when the ai player is again
-            state, reward, done, nu_games_won = env.step(action)
+            state, reward, done, nu_games_won = env.stepEndReward(action)
             if reward==-100:
                 invalid_moves +=1
 
@@ -535,7 +535,8 @@ def main():
             # total_rewards per game should be maximized!!!!
             aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if per_game_reward>-5:
+            if per_game_reward>-10:
+                 print(memory.rewards)
                  path =  'ppo_models/PPO_{}_{}_{}'.format(env_name, per_game_reward, total_games_won[1])
                  torch.save(ppo.policy.state_dict(), path+".pth")
                  torch.onnx.export(ppo.policy_old.action_layer, torch.rand(240), path+".onnx")

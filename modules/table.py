@@ -128,7 +128,7 @@ class cardTableWidget(QWidget):
         self.play_2_state  = self.addPlayerLabel(200+120, 250, "")
         self.play_3_state  = self.addPlayerLabel(200+120*2, 250, "")
         self.play_4_state  = self.addPlayerLabel(200+120*3, 250, "")
-        self.game_indicator= self.addPlayerLabel(680, 5, "Game: ")
+        self.game_indicator= self.addPlayerLabel(650, 5, "Game: ")
 
         playbtn = QPushButton('Start', self)
         playbtn.resize(50, 32)
@@ -253,6 +253,7 @@ class cardTableWidget(QWidget):
         self.view.viewport().repaint()
         time.sleep(self.options["sleepTime"]*20)
         self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
+        self.my_game.current_round = 0
         if self.options["nu_games"] > self.my_game.nu_games_played+1:
             self.nextRound_clicked()
 
@@ -507,16 +508,14 @@ class cardTableWidget(QWidget):
             return
         card_played = self.playCard(card, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
         if card_played:
-            print("Active Player", self.my_game.active_player)
-            print("before round finished!")
             rewards, round_finished = self.playVirtualCard(action)
-            if rewards is not None:
+            if len(self.my_game.players[self.my_game.active_player].hand)==0:
                 self.checkFinished()
                 self.showResult(rewards)
                 return
             self.checkFinished()
-            print("Active Player", self.my_game.active_player)
-            print("Human Card Played: ", card)
+            #print("Active Player", self.my_game.active_player)
+            #print("Human Card Played: ", card)
             self.playUntilHuman()
 
 

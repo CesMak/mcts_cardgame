@@ -44,6 +44,24 @@ class WitchesEnv(gym.Env):
         self.updateTotalResult()
         return state.flatten(), float(reward)+21, done, {}
 
+    def stepEndReward(self, action):
+        assert self.action_space.contains(action)
+        # play until ai!
+        reward = self.playRound(action)
+        done = False
+        if reward == -100:
+            # illegal move, just do not play Card!
+            state= self.my_game.getState()
+            #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
+            self.my_game.total_rewards[self.reinfo_index] -=100
+            return state.flatten(), float(reward), False, np.zeros(4,)
+        if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
+            done = True
+        rewards, done = self.playUnitlAI()
+        state= self.my_game.getState()
+        self.updateTotalResult()
+        return state.flatten(), self.my_game.total_rewards[self.reinfo_index], done, self.number_of_won
+
     def step(self, action):
         assert self.action_space.contains(action)
         # play until ai!
