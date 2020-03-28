@@ -162,7 +162,7 @@ class PPO:
         self.K_epochs = K_epochs
 
         self.policy = ActorCritic(state_dim, action_dim, n_latent_var).to(device)
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas) # no eps before!
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas, eps=1e-5) # no eps before!
         self.policy_old = ActorCritic(state_dim, action_dim, n_latent_var).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         #TO decay learning rate during training:
@@ -225,7 +225,7 @@ class PPO:
         crictic_discount = 0.5
         critic_loss =crictic_discount*self.MseLoss(state_values, torch.tensor(rewards))
         # 4. Total Loss
-        beta       = 0.02 # encourage to explore different policies
+        beta       = 0.01 # encourage to explore different policies
         total_loss = critic_loss+actor_loss- beta*dist_entropy
         return total_loss
 
@@ -248,6 +248,7 @@ class PPO:
             # Evaluating old actions and values :
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
             advantages = rewards - state_values.detach()
+            #rewards, advantages = self.get_advantages( state_values, memory.is_terminals, rewards, self.gamma)
             loss       =  self.calculate_total_loss(state_values, logprobs, old_logprobs, advantages, rewards, dist_entropy)
 
             # take gradient step
@@ -350,8 +351,8 @@ def learnfurther(path):
         print("No Logging to be removed!")
     # creating environment
     env = gym.make(env_name)
-    ppo_learn = PPO(240, 60, 512, 25*1e-5, (0.9, 0.999), 0.99, 4, 0.1)
-    update_timestep = 2000
+    ppo_learn = PPO(240, 60, 512, 10*1e-15, (0.9, 0.999), 0.99, 10, 0.0005)
+    update_timestep = 5
     decay           = 20000
     memory = Memory()
     ppo_learn.policy.load_state_dict(torch.load(path))
@@ -366,7 +367,7 @@ def learnfurther(path):
     total_rewards  = 0
     total_number_of_games_played = 0
     invalid_moves = 0
-    log_interval  = 2000           # print avg reward in the interval
+    log_interval  = 50           # print avg reward in the interval
     max_reward    = -100
 
     for i_episode in range(1, 500000000+1):
@@ -400,14 +401,14 @@ def learnfurther(path):
             # total_rewards per game should be maximized!!!!
             aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if per_game_reward>-2.5:
+            if per_game_reward>-2:
                  path =  'ppo_models/PPO_{}_{}_{}'.format(env_name, per_game_reward, total_games_won[1])
                  torch.save(ppo_learn.policy.state_dict(), path+".pth")
                  torch.onnx.export(ppo_learn.policy_old.action_layer, torch.rand(240), path+".onnx")
                  print("ONNX 20 Games RESULT:")
                  if per_game_reward>max_reward:
                      max_reward = per_game_reward
-                     testOnnxModel(path+".onnx")
+                     #testOnnxModel(path+".onnx")
                  print("\n\n\n")
 
             invalid_moves = 0
@@ -460,19 +461,19 @@ def main():
         print("No Logging to be removed!")
     render        = False
     solved_reward = 230         # stop training if avg_reward > solved_reward
-    log_interval  = 50           # print avg reward in the interval
+    log_interval  = 2000           # print avg reward in the interval
     max_episodes  = 500000       # max training episodes
     # TODO DO NOT RESET AFTER FIXED VALUE BUT AT END OF Game
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
-    n_latent_var    = 512            # number of variables in hidden layer
-    update_timestep = 5             # before 5 in big2 = 5
-    lr              =  0.00025      # in big2game:  0.00025
-    gamma           = 0.99
+    n_latent_var    = 64            # number of variables in hidden layer
+    update_timestep = 2000             # before 5 in big2 = 5
+    lr              =  25*1e-3      # in big2game:  0.00025
+    gamma           = 0.90
     betas           = (0.9, 0.999)
-    K_epochs        = 8               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
-    eps_clip        = 0.2             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
+    K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
+    eps_clip        = 0.1             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
     random_seed     = None
-    decay           = 5000000
+    decay           = 20000
     #############################################
 
     if random_seed:
@@ -550,8 +551,9 @@ def main():
 
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
-    #main()
-    learnfurther("ppo_models/PPO_Witches-v0_-2.339999999999975_6.0.pth")
+    main()
+    #learnfurther("ppo_models/pre_trained_mc_rewarding.pth")
+
     # PPO_Witches-v0_41.0222.pth  (128) 49.7 % won [161. 497. 170. 172.] invalid_moves: 407 None   # Trained without reset
     # PPO_Witches-v0_7.0.pth      (256) 51.0 % won [151. 510. 166. 173.] invalid_moves: 244 None   # Trained with reset
     #PPO_Witches-v0_-1.759999999999991_5.0 512 update Timestep = 20, K=4 eps_clip = 0.2
