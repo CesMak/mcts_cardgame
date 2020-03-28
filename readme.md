@@ -98,6 +98,9 @@ I tested the pytorch [REINFORCE](https://pytorch.org/docs/stable/distributions.h
 * Using update_timestep of 2000 is advised!
 * eps clipping = 0.1 is advised!
 * 81% is a maximum
+  * Can still be better!
+  * Plays to greedy (always captures blue 11)
+  * Plays Joker to early!
 * Further TODO:
 * Include shifting properly! (in the learning process and in the game)
 
