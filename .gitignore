@@ -5,3 +5,4 @@ data/*.txt
 table.pyc
 modules/models
 modules/ppo_models
+modules/logging.txt
