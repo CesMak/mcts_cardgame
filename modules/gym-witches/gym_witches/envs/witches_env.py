@@ -8,6 +8,14 @@ import numpy as np
 
 from gym.utils import seeding
 
+# Takes 4min for one logging (2000 games)
+import onnxruntime
+
+# for using path (to speed up)
+# Takes 45sec  for one logging (2000 games)
+from ppo_witches import PPO
+import torch
+
 class WitchesEnv(gym.Env):
     metadata = {'render.modes': ['human']}
     def __init__(self):
@@ -19,11 +27,15 @@ class WitchesEnv(gym.Env):
         self.options = {}
         self.number_of_won = [0, 0, 0, 0]
         self.saved_results = np.zeros(4,)
-        self.options_file_path =  "../data/reinforce_options.json"
+        self.options_file_path =  "gym-witches/gym_witches/envs/reinforce_options.json"
         with open(self.options_file_path) as json_file:
             self.options = json.load(json_file)
         self.reinfo_index = self.options["type"].index("REINFO")
         self.my_game      = game(self.options)
+        self.ppo_test = PPO(240, 60, 256, 25*1e-8, (0.9, 0.999), 0.999, 5, 0.01)
+        # trained_pre33_    test_-2.8
+        path = "gym-witches/gym_witches/envs/trained_pre33_.pth"
+        self.ppo_test.policy_old.load_state_dict(torch.load(path))
 
     def step_filter(self, action):
         # action that comes in here has to be a valid one!
@@ -79,29 +91,38 @@ class WitchesEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
+    def getPathAction(self, x):
+        return self.ppo_test.policy_old.act(x.flatten(), None)
+
+    def getOnnxAction(self, path, x):
+        '''Input:
+        x:      240x1 list binary values
+        path    *.onnx (with correct model)'''
+        ort_session = onnxruntime.InferenceSession(path)
+        ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(x.flatten(), dtype=np.float32)}
+        ort_outs    = ort_session.run(None, ort_inputs)
+        max_value = (np.amax(ort_outs))
+        result = np.where(ort_outs == np.amax(ort_outs))
+        return result[1][0]
+
     def playUnitlAI(self):
         #print("\nPlay until AI")
         rewards = np.zeros((self.my_game.nu_players,))
         game_over = False
         while len(self.my_game.players[self.my_game.active_player].hand) > 0:
             current_player = self.my_game.active_player
-            if not "REINFO" in self.my_game.ai_player[current_player]:
+            if "RANDOM" in self.my_game.ai_player[current_player]:
                 action = self.my_game.getRandomOption_()
                 card   = self.my_game.players[current_player].hand[action]
                 #print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
+                rewards, round_finished = self.my_game.step_idx(action)
+            elif "TRAINED" in self.my_game.ai_player[current_player]:
+                action = self.selectAction(0)
                 rewards, round_finished = self.my_game.step_idx(action)
             else:
                 return rewards, game_over
         # Game is over!
         return rewards, True
-
-    def finishRound(self, desired_action):
-        action = self.selectAction(desired_action)
-        if action is None:
-            print("Illegal Move")
-            return -100
-        else:
-            print("hallo")
 
     def playRound(self, reinfo_action_idx):
         current_player =  self.my_game.active_player
@@ -128,6 +149,19 @@ class WitchesEnv(gym.Env):
         action = None
         if "RANDOM" in self.my_game.ai_player[current_player]:
             action = self.my_game.getRandomOption_()
+        elif "TRAINED" in self.my_game.ai_player[current_player]:
+            state = self.my_game.getState()
+            #action= self.getOnnxAction("gym-witches/gym_witches/envs/test_-2.8.onnx", state)
+            action = self.getPathAction(state)
+            card   = self.my_game.players[current_player].getIndexOfCard(action)
+            tmp = self.my_game.players[current_player].specificIndexHand(card)
+            valid_options_idx = self.my_game.getValidOptions(current_player)
+            player_has_card = self.my_game.players[current_player].hasSpecificCardOnHand(card)
+            if player_has_card and tmp in valid_options_idx:
+                action = tmp
+            else:
+                #print("Wrong MOVE!")
+                action = self.my_game.getRandomOption_()
         elif "REINFO"  in self.my_game.ai_player[current_player]:
             valid_options_idx = self.my_game.getValidOptions(current_player)
             card   = self.my_game.players[current_player].getIndexOfCard(reinfo_action_idx)

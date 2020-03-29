@@ -60,8 +60,14 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Note PPO beats ACER, A2C and other algos
 # https://github.com/seungeunrho/minimalRL/blob/master/ppo.py
 
+# Next steps is using subproc_vecenv
+# see https://ai.stackexchange.com/questions/12540/implementation-of-ppo-value-loss-not-converging-return-plateauing
+
 # Below code is from:
 # https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py
+
+
+
 
 class Memory:
     def __init__(self):
@@ -166,24 +172,8 @@ class PPO:
         self.policy_old = ActorCritic(state_dim, action_dim, n_latent_var).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         #TO decay learning rate during training:
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=20000, gamma=0.5)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100000, gamma=0.5)
         self.MseLoss = nn.MSELoss()
-
-    def monteCarloRewards(self, memory):
-        # Monte Carlo estimate of state rewards:
-        # see: https://medium.com/@zsalloum/monte-carlo-in-reinforcement-learning-the-easy-way-564c53010511
-        rewards = []
-        discounted_reward = 0
-        for reward, is_terminal in zip(reversed(memory.rewards), reversed(memory.is_terminals)):
-            if is_terminal:
-                discounted_reward = 0
-            discounted_reward = reward + (self.gamma * discounted_reward)
-            rewards.insert(0, discounted_reward)
-
-        # Normalizing the rewards:
-        rewards = torch.tensor(rewards).to(device)                     # use here memory.rewards
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)  # commented out
-        return rewards
 
     def discount_rewards(self, rewards, gamma=0.99):
         r = np.array([gamma**i * rewards[i] for i in range(len(rewards))])
@@ -214,6 +204,22 @@ class PPO:
         # Normalizing advantages
         return returns, (adv - adv.mean()) / (adv.std() + 1e-5)
 
+    def monteCarloRewards(self, memory):
+        # Monte Carlo estimate of state rewards:
+        # see: https://medium.com/@zsalloum/monte-carlo-in-reinforcement-learning-the-easy-way-564c53010511
+        rewards = []
+        discounted_reward = 0
+        for reward, is_terminal in zip(reversed(memory.rewards), reversed(memory.is_terminals)):
+            if is_terminal:
+                discounted_reward = 0
+            discounted_reward = reward + (self.gamma * discounted_reward)
+            rewards.insert(0, discounted_reward)
+
+        # Normalizing the rewards:
+        rewards = torch.tensor(rewards).to(device)                     # use here memory.rewards
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)  # commented out
+        return rewards
+
     def calculate_total_loss(self, state_values, logprobs, old_logprobs, advantage, rewards, dist_entropy):
         # 1. Calculate how much the policy has changed
         ratios = torch.exp(logprobs - old_logprobs.detach())
@@ -225,7 +231,7 @@ class PPO:
         crictic_discount = 0.5
         critic_loss =crictic_discount*self.MseLoss(state_values, torch.tensor(rewards))
         # 4. Total Loss
-        beta       = 0.01 # encourage to explore different policies
+        beta       = 0.01 # encourage to explore different policies let at 0.01
         total_loss = critic_loss+actor_loss- beta*dist_entropy
         return total_loss
 
@@ -351,24 +357,21 @@ def learnfurther(path):
         print("No Logging to be removed!")
     # creating environment
     env = gym.make(env_name)
-    ppo_learn = PPO(240, 60, 512, 10*1e-15, (0.9, 0.999), 0.99, 10, 0.0005)
-    update_timestep = 5
-    decay           = 20000
+    ppo_learn = PPO(240, 60, 256, 25*1e-6, (0.9, 0.999), 0.99, 10, 0.1)
+    update_timestep = 2000
+    decay           = 100000
     memory = Memory()
     ppo_learn.policy.load_state_dict(torch.load(path))
     ppo_learn.policy.action_layer.eval()
     ppo_learn.policy.value_layer.eval()
 
     total_games_won = np.zeros(4,)
-    total_nu_of_wrong_moves = 0
-    max_games               = 1000
-    total_stats             = None
-    timestep = 0
-    total_rewards  = 0
+    timestep        = 0
+    total_rewards   = 0
     total_number_of_games_played = 0
-    invalid_moves = 0
-    log_interval  = 50           # print avg reward in the interval
-    max_reward    = -100
+    invalid_moves   = 0
+    log_interval    = 2000           # print avg reward in the interval
+    max_wins        = -6
 
     for i_episode in range(1, 500000000+1):
         timestep += 1
@@ -399,15 +402,14 @@ def learnfurther(path):
             per_game_reward = total_reward_per_game_positive-15*21
             games_won = str(np.array2string(total_games_won))
             # total_rewards per game should be maximized!!!!
-            aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
+            aaa = ('Game ,{:07d}, rew ,{:0.5}, inv_mo ,{:4.4}, won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if per_game_reward>-2:
+            if per_game_reward>-6 and per_game_reward>max_wins:
                  path =  'ppo_models/PPO_{}_{}_{}'.format(env_name, per_game_reward, total_games_won[1])
                  torch.save(ppo_learn.policy.state_dict(), path+".pth")
                  torch.onnx.export(ppo_learn.policy_old.action_layer, torch.rand(240), path+".onnx")
                  print("ONNX 20 Games RESULT:")
-                 if per_game_reward>max_reward:
-                     max_reward = per_game_reward
+                 max_wins = per_game_reward
                      #testOnnxModel(path+".onnx")
                  print("\n\n\n")
 
@@ -417,13 +419,11 @@ def learnfurther(path):
             with open(log_path, "a") as myfile:
                 myfile.write(aaa)
 
-
-
 def test_trained_model(path):
     env_name = "Witches-v0"
     # creating environment
     env = gym.make(env_name)
-    ppo_test = PPO(240, 60, 512, 25*1e-7, (0.9, 0.999), 0.99, 5, 0.1)
+    ppo_test = PPO(240, 60, 256, 25*1e-8, (0.9, 0.999), 0.999, 5, 0.01)
     memory = Memory()
     ppo_test.policy_old.load_state_dict(torch.load(path))
     total_games_won = np.zeros(4,)
@@ -462,18 +462,18 @@ def main():
     render        = False
     solved_reward = 230         # stop training if avg_reward > solved_reward
     log_interval  = 2000           # print avg reward in the interval
-    max_episodes  = 500000       # max training episodes
+    max_episodes  = 50000000000       # max training episodes
     # TODO DO NOT RESET AFTER FIXED VALUE BUT AT END OF Game
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
-    n_latent_var    = 64            # number of variables in hidden layer
+    n_latent_var    = 256            # number of variables in hidden layer
     update_timestep = 2000             # before 5 in big2 = 5
-    lr              =  25*1e-3      # in big2game:  0.00025
-    gamma           = 0.90
+    lr              =  25*1e-4      # in big2game:  0.00025
+    gamma           = 0.99
     betas           = (0.9, 0.999)
     K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
     eps_clip        = 0.1             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
     random_seed     = None
-    decay           = 20000
+    decay           = 100000
     #############################################
 
     if random_seed:
@@ -494,6 +494,7 @@ def main():
     total_number_of_games_played = 0
     total_rewards  = 0
     total_games_won = np.zeros(4,)
+    max_wins = 100
 
     # training loop
     for i_episode in range(1, max_episodes+1):
@@ -533,12 +534,13 @@ def main():
             per_game_reward = total_reward_per_game_positive-15*21
             games_won = str(np.array2string(total_games_won))
             # total_rewards per game should be maximized!!!!
-            aaa = ('Game ,{:07d}, reward ,{:0.5}, invalid_moves ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
+            aaa = ('Game ,{:07d}, reward ,{:0.5}, inv ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if per_game_reward>-5:
+            if per_game_reward>-10and total_games_won[1]>max_wins:
                  path =  'ppo_models/PPO_{}_{}_{}'.format(env_name, per_game_reward, total_games_won[1])
                  torch.save(ppo.policy.state_dict(), path+".pth")
                  torch.onnx.export(ppo.policy_old.action_layer, torch.rand(240), path+".onnx")
+                 max_wins =  total_games_won[1]
                  print("ONNX 1000 Games RESULT:")
                  #testOnnxModel(path+".onnx")
                  print("\n\n\n")
@@ -551,8 +553,8 @@ def main():
 
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
-    main()
-    #learnfurther("ppo_models/pre_trained_mc_rewarding.pth")
+    #main()
+    learnfurther("ppo_models/mc_rewards_512_72_3_03.pth")
 
     # PPO_Witches-v0_41.0222.pth  (128) 49.7 % won [161. 497. 170. 172.] invalid_moves: 407 None   # Trained without reset
     # PPO_Witches-v0_7.0.pth      (256) 51.0 % won [151. 510. 166. 173.] invalid_moves: 244 None   # Trained with reset
