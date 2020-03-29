@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 import gym
-import gym_witches
+import gym_witches # pip install -e .  https://medium.com/@apoddar573/making-your-own-custom-environment-in-gym-c3b65ff8cdaa
 import stdout
 import datetime
 
@@ -465,9 +465,9 @@ def main():
     max_episodes  = 50000000000       # max training episodes
     # TODO DO NOT RESET AFTER FIXED VALUE BUT AT END OF Game
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
-    n_latent_var    = 256            # number of variables in hidden layer
+    n_latent_var    = 64            # number of variables in hidden layer
     update_timestep = 2000             # before 5 in big2 = 5
-    lr              =  25*1e-4      # in big2game:  0.00025
+    lr              = 25*1e-3      # in big2game:  0.00025
     gamma           = 0.99
     betas           = (0.9, 0.999)
     K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
@@ -508,7 +508,8 @@ def main():
 
             # this should be the reward for the above action
             # this is the new state! when the ai player is again
-            state, reward, done, nu_games_won = env.step(action)
+            # step_withShift  stepEndReward
+            state, reward, done, nu_games_won = env.step_withShift(action)
             if reward==-100:
                 invalid_moves +=1
 
@@ -536,11 +537,11 @@ def main():
             # total_rewards per game should be maximized!!!!
             aaa = ('Game ,{:07d}, reward ,{:0.5}, inv ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if per_game_reward>-10and total_games_won[1]>max_wins:
+            if per_game_reward>-6 and per_game_reward>max_wins:
                  path =  'ppo_models/PPO_{}_{}_{}'.format(env_name, per_game_reward, total_games_won[1])
                  torch.save(ppo.policy.state_dict(), path+".pth")
                  torch.onnx.export(ppo.policy_old.action_layer, torch.rand(240), path+".onnx")
-                 max_wins =  total_games_won[1]
+                 max_wins =  per_game_reward
                  print("ONNX 1000 Games RESULT:")
                  #testOnnxModel(path+".onnx")
                  print("\n\n\n")
@@ -553,8 +554,8 @@ def main():
 
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
-    #main()
-    learnfurther("ppo_models/mc_rewards_512_72_3_03.pth")
+    main()
+    #learnfurther("ppo_models/mc_rewards_512_72_3_03.pth")
 
     # PPO_Witches-v0_41.0222.pth  (128) 49.7 % won [161. 497. 170. 172.] invalid_moves: 407 None   # Trained without reset
     # PPO_Witches-v0_7.0.pth      (256) 51.0 % won [151. 510. 166. 173.] invalid_moves: 244 None   # Trained with reset
