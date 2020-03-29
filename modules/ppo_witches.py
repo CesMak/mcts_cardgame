@@ -467,8 +467,8 @@ def main():
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
     n_latent_var    = 64            # number of variables in hidden layer
     update_timestep = 2000             # before 5 in big2 = 5
-    lr              =  25*1e-3      # in big2game:  0.00025
-    gamma           = 0.90
+    lr              = 25*1e-3      # in big2game:  0.00025
+    gamma           = 0.99
     betas           = (0.9, 0.999)
     K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
     eps_clip        = 0.1             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
@@ -507,7 +507,8 @@ def main():
 
             # this should be the reward for the above action
             # this is the new state! when the ai player is again
-            state, reward, done, nu_games_won = env.stepEndReward(action)
+            # step_withShift  stepEndReward
+            state, reward, done, nu_games_won = env.step_withShift(action)
             if reward==-100:
                 invalid_moves +=1
 

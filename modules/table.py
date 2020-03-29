@@ -298,7 +298,11 @@ class cardTableWidget(QWidget):
             action = self.my_game.getRandomOption_()
         elif "RL"  in self.my_game.ai_player[current_player]:
             line = self.my_game.getStateEND()
-            action = self.rl_onnx(line.flatten(), self.options["onnx_rl_path"])
+            try:
+                rl_type = int(''.join(x for x in self.my_game.ai_player[current_player] if x.isdigit()))
+            except:
+                rl_type = 1
+            action = self.rl_onnx(line.flatten(), "data/"+self.options["onnx_rl_path"][rl_type]+".onnx")
             card   = self.my_game.players[current_player].getIndexOfCard(action)
             action = self.my_game.players[current_player].specificIndexHand(card)
             is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)

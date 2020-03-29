@@ -1,4 +1,4 @@
-![mcts_witches](data/imgs/82_winner_ppo.png)
+![mcts_witches](data/imgs/rl_players.png)
 
 To play a card as HUMAN **double click** the card.
 
@@ -6,6 +6,8 @@ To play a card as HUMAN **double click** the card.
 Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
 
 # Linux
+Commited Versions:
+  * commit **0.1** Beta shifting included in learning process 
 ```
 python gui.py
 ```
@@ -15,7 +17,7 @@ See file **gui_options.json**
 ```json
 {
   "names": ["Laura", "Alfons", "Frank", "Lea"],
-  "type": ["NN", "RANDOM", "RANDOM", "NN"],  "[HUMAN, RANDOM, NN, MCTS, RL]"
+  "type": ["NN", "RANDOM", "HUMAN", "RL0"],  "[HUMAN, RANDOM, NN, MCTS, RL0, RL1, ... RL5]"
   "expo": [500, 500, 500, 500],              "-> adjustements only for MCTS"
   "depths": [300, 300, 300, 300],            "-> adjustements only for MCTS"
   "itera": [5000, 5000, 5000, 5000],         " -> adjustements only for MCTS"
@@ -30,7 +32,7 @@ See file **gui_options.json**
   "save_game_play": false,                   " [true, false]  true: save a pickle game_play"
   "game_play_path": "data/game_play.pkl",    " *.pkl          path for pickle game_play"
   "onnx_path": "data/model_long_training.pth.onnx"  "[model_long_training.pth.onnx, model.pth.onnx, actions_all.pth.onnx]"
-  "onnx_rl_path": "data/rl_path4_82.onnx"    " [rl_path1, rl_path2, rl_path3, rl_path4_82] path PPO trained"
+  "onnx_rl_path": ["rl_path3", "rl_path4", "rl_path5", "rl_path6"]   " in data/*.onnx [rl_path3, rl_path4, rl_path5, rl_path6] path PPO trained"
 }
 ```
 
@@ -44,12 +46,13 @@ See file **gui_options.json**
     + *expo* : Trade-off between exploration (the higher this value ) and exploitation
     + *itera*: Max number of iterations (the lower the faster)
   * RL     : Reinforcement Learning
+    + Select RL(number)  number in range 0, len(onnx_rl_path), the higher the stronger the RL
     + An actor-critic Proximal Policy Optimization (PPO) Reinforcement Learning algorithm.
     + Generate trained model using the **[modules/ppo_witches](https://github.com/CesMak/mcts_cardgame/blob/master/modules/ppo_witches.py)** and the **[modules/gym-witches](https://github.com/CesMak/mcts_cardgame/tree/master/modules/gym-witches)**
     + *onnx_rl_path*: Path to the trained model
         + rl_path4_82.onnx (is the stronges one), wins 80% of the games (against only RANDOM players)
         + trained for 2h on single cpu, i5, no vectorized environment
-        + TODO statistics against me (human)
+        + I still can beat ai (ai is to greedy) Stats 3 Games: [Rand=-32, RL=-9, RL=-35, ME=+1]
 
 # Rules of witches:
 *	Aim:	Have a minimum of minus Points!
@@ -103,6 +106,18 @@ I tested the pytorch [REINFORCE](https://pytorch.org/docs/stable/distributions.h
   * Plays Joker to early!
 * Further TODO:
 * Include shifting properly! (in the learning process and in the game)
+
+* Including shifting phase
+* First  move: shift 1 card (possible cards are all cards on hand)
+* Second move: shift 1 card (possible cards are all on hand except already shifted one)
+* Third  move: play a card.
+
+* Training against trained players
+  + is computationally expensive (use path instead of .onnx)
+  + Has not a big effect (correct hyperparams not found yet?)
+  + Tested gamma=0.7  -> almost no effect
+  + Tested update timestep = 5 -> almost no effect
+  + Example 35% : Game ,0018000, rew ,-5.351, inv_mo ,0.0025, won ,[48. 79. 51. 58.],  Time ,0:07:40.390401
 
 # Further Notes
 ## MCTS

@@ -7,6 +7,13 @@ import json
 import numpy as np
 
 from gym.utils import seeding
+# Takes 4min for one logging (2000 games)
+import onnxruntime
+
+# for using path (to speed up)
+# Takes 45sec  for one logging (2000 games)
+from ppo_witches import PPO
+import torch
 
 class WitchesEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -19,11 +26,18 @@ class WitchesEnv(gym.Env):
         self.options = {}
         self.number_of_won = [0, 0, 0, 0]
         self.saved_results = np.zeros(4,)
-        self.options_file_path =  "../data/reinforce_options.json"
+        self.options_file_path =  "gym-witches/gym_witches/envs/reinforce_options.json"
         with open(self.options_file_path) as json_file:
             self.options = json.load(json_file)
         self.reinfo_index = self.options["type"].index("REINFO")
         self.my_game      = game(self.options)
+
+        self.use_shifting = True
+
+        self.ppo_test = PPO(240, 60, 256, 25*1e-8, (0.9, 0.999), 0.999, 5, 0.01)
+        # trained_pre33_    test_-2.8
+        path = "gym-witches/gym_witches/envs/trained_pre33_.pth"
+        self.ppo_test.policy_old.load_state_dict(torch.load(path))
 
     def step_filter(self, action):
         # action that comes in here has to be a valid one!
@@ -45,6 +59,7 @@ class WitchesEnv(gym.Env):
         return state.flatten(), float(reward)+21, done, {}
 
     def stepEndReward(self, action):
+        # just give back the reward at the end of the game sonst nur 0
         assert self.action_space.contains(action)
         # play until ai!
         reward = self.playRound(action)
@@ -61,6 +76,25 @@ class WitchesEnv(gym.Env):
         state= self.my_game.getState()
         self.updateTotalResult()
         return state.flatten(), self.my_game.total_rewards[self.reinfo_index], done, self.number_of_won
+
+    def step_withShift(self, action):
+        # SET self.use_shifting = True
+        assert self.action_space.contains(action)
+        # play until ai!
+        reward = self.playRound(action)
+        done = False
+        if reward == -100:
+            # illegal move, just do not play Card!
+            state= self.my_game.getState()
+            #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
+            self.my_game.total_rewards[self.reinfo_index] -=100
+            return state.flatten(), float(reward), True, np.zeros(4,)
+        if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
+            done = True
+        rewards, done = self.playUnitlAI()
+        state= self.my_game.getState()
+        self.updateTotalResult()
+        return state.flatten(), float(reward)+21, done, self.number_of_won
 
     def step(self, action):
         assert self.action_space.contains(action)
@@ -104,22 +138,20 @@ class WitchesEnv(gym.Env):
         while len(self.my_game.players[self.my_game.active_player].hand) > 0:
             current_player = self.my_game.active_player
             if not "REINFO" in self.my_game.ai_player[current_player]:
-                action = self.my_game.getRandomOption_()
+                if self.use_shifting and self.my_game.shifting_phase:
+                    action = self.my_game.getRandomCards()[0]
+                else:
+                    action = self.my_game.getRandomOption_()
                 card   = self.my_game.players[current_player].hand[action]
-                #print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
-                rewards, round_finished = self.my_game.step_idx(action)
+                # if self.use_shifting and self.my_game.shifting_phase:
+                #     print("[{}] {} {}\t shifts {}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
+                # else:
+                #     print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
+                rewards, round_finished = self.my_game.step_idx_with_shift(action)
             else:
                 return rewards, game_over
         # Game is over!
         return rewards, True
-
-    def finishRound(self, desired_action):
-        action = self.selectAction(desired_action)
-        if action is None:
-            print("Illegal Move")
-            return -100
-        else:
-            print("hallo")
 
     def playRound(self, reinfo_action_idx):
         current_player =  self.my_game.active_player
@@ -127,12 +159,15 @@ class WitchesEnv(gym.Env):
         while not round_finished:
             action = self.selectAction(reinfo_action_idx)
             if action is None:
-                # illegal move just do not play it!
+                #print("This move is illegal")
                 return -100
             current_player = self.my_game.active_player
             card   = self.my_game.players[current_player].hand[action]
-            #print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t nuCards {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
-            rewards, round_finished = self.my_game.step_idx(action)
+            # if self.use_shifting and self.my_game.shifting_phase:
+            #     print("[{}] {} {}\tshifts {}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
+            # else:
+            #     print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
+            rewards, round_finished = self.my_game.step_idx_with_shift(action)
         #print("Rewards", rewards)
         return rewards[self.reinfo_index]
 
@@ -145,7 +180,10 @@ class WitchesEnv(gym.Env):
         current_player = self.my_game.active_player
         action = None
         if "RANDOM" in self.my_game.ai_player[current_player]:
-            action = self.my_game.getRandomOption_()
+            if self.use_shifting and self.my_game.shifting_phase:
+                action = self.my_game.getRandomCards()[0]
+            else:
+                action = self.my_game.getRandomOption_()
         elif "REINFO"  in self.my_game.ai_player[current_player]:
             valid_options_idx = self.my_game.getValidOptions(current_player)
             card   = self.my_game.players[current_player].getIndexOfCard(reinfo_action_idx)
@@ -154,7 +192,10 @@ class WitchesEnv(gym.Env):
             if player_has_card:
                 for option in valid_options_idx:
                     tmp+=str(self.my_game.players[current_player].hand[option])+ " "
-            #print(">>AI wants: {}\t> {}\thas card  {}\toptions {}".format(reinfo_action_idx, card, player_has_card, tmp))
+            # if self.use_shifting  and self.my_game.shifting_phase:
+            #     print(">>AI wants to shift: {}\t> {}\thas card  {}\toptions {}".format(reinfo_action_idx, card, player_has_card, tmp))
+            # else:
+            #     print(">>AI wants to play: {}\t> {}\thas card  {}\toptions {}".format(reinfo_action_idx, card, player_has_card, tmp),"\n")
             if player_has_card:
                 tmp = self.my_game.players[current_player].specificIndexHand(card)
                 if tmp in valid_options_idx:
