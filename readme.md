@@ -7,7 +7,8 @@ Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSY
 
 # Linux
 Commited Versions:
-  * commit **witches_0.1** Beta shifting included in learning process 
+  * commit **witches_0.1** Beta shifting included in learning process
+  * commit **witches_0.2** Beta shifting included also in gui.py 
 ```
 python gui.py
 ```

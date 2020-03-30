@@ -47,27 +47,40 @@ class CardGraphicsItem(QtSvg.QGraphicsSvgItem):
         self.player = player # which player holds the card
         self.faceDown = faceDown # does the card faceDown
         self.anim = QPropertyAnimation() # will use to animate card movement
+        #self.isPressed = False
 
         #default properties
-        self.setAcceptHoverEvents(True) #by Qt default it is set to False
+        # IF CORE DUMPED uncomment following line"
+        #self.setAcceptHoverEvents(True) #by Qt default it is set to False
 
     def hoverEnterEvent(self, event):
         """ event when mouse enter a card """
-        effect = QGraphicsDropShadowEffect(self)
-        effect.setBlurRadius(15)
-        effect.setColor(Qt.red)
-        effect.setOffset(QPointF(-5,0))
-        self.setGraphicsEffect(effect)
+        try:
+            effect = QGraphicsDropShadowEffect(self)
+            effect.setBlurRadius(15)
+            effect.setColor(Qt.red)
+            effect.setOffset(QPointF(-5,0))
+            self.setGraphicsEffect(effect)
+        except:
+            print("error")
 
     # def mousePressEvent(self, event):
     #     print("mouse Press Event!!!", event)
     #     p = event.pos()
     #     p -= QPoint(10, 10) #correction to mouse click. not sure why this happen
     #     print(p)
+    #     self.isPressed = True
 
-    def hoverLeaveEvent(self, event):
-        """ event when mouse leave a card """
-        self.setGraphicsEffect(None)
+    # def hoverLeaveEvent(self, event):
+    #     """ event when mouse leave a card """
+    #     try:
+    #         effect = QGraphicsDropShadowEffect(self)
+    #         effect.setBlurRadius(150)
+    #         effect.setColor(Qt.red)
+    #         effect.setOffset(QPointF(-5,0))
+    #         self.setGraphicsEffect(effect)
+    #     except:
+    #         print("error")
 
     def __repr__(self):
         return '<CardGraphicsItem: %s>' % self.card
@@ -123,6 +136,8 @@ class cardTableWidget(QWidget):
         self.card2_label   = self.addPlayerLabel(200+120, 210,   "")
         self.card3_label   = self.addPlayerLabel(200+120*2, 210, "")
         self.card4_label   = self.addPlayerLabel(200+120*3, 210, "")
+
+        self.card_label_l  = [self.card1_label, self.card2_label, self.card3_label, self.card4_label]
 
         self.play_1_state  = self.addPlayerLabel(200, 250, "")
         self.play_2_state  = self.addPlayerLabel(200+120, 250, "")
@@ -292,12 +307,10 @@ class cardTableWidget(QWidget):
         return result[1][0]
 
     def selectAction(self):
-        # TODO incooperate shift
+        # Version 2.0 shifting active do not use nn, mcts anymore!
         current_player = self.my_game.active_player
-        if "RANDOM" in self.my_game.ai_player[current_player]:
-            action = self.my_game.getRandomOption_()
-        elif "RL"  in self.my_game.ai_player[current_player]:
-            line = self.my_game.getStateEND()
+        if "RL"  in self.my_game.ai_player[current_player]:
+            line = self.my_game.getState()
             try:
                 rl_type = int(''.join(x for x in self.my_game.ai_player[current_player] if x.isdigit()))
             except:
@@ -311,62 +324,11 @@ class cardTableWidget(QWidget):
                 print("RL: ACTION NOT ALLOWED!", card)
                 print("I play random possible option instead")
                 action = self.my_game.getRandomOption_()
-        elif "NN"   in self.my_game.ai_player[current_player]:
-            line = (self.my_game.getBinaryState(current_player, 0, -1.0))
-            # optional for testing with pytorch:
-            #action = test_trained_model(line, self.options["model_path_for_NN"])# action from 0-60 -> transform to players action!
-            action = self.test_onnx(line, self.options["onnx_path"])
-            card   = self.my_game.players[current_player].getIndexOfCard(action)
-            action = self.my_game.players[current_player].specificIndexHand(card)
-            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
-            incolor =self.my_game.getInColor()
-            if action not in is_allowed_list_idx and incolor is not None:
-                print("ACTION NOT ALLOWED!", card)
-                print("I play random possible option instead")
+        else:# "RANDOM":
+            if self.my_game.shifting_phase:
+                action = self.my_game.getRandomCards()[0]
+            else:
                 action = self.my_game.getRandomOption_()
-        elif "MCTS" in self.my_game.ai_player[current_player]:
-            state = self.my_game.getGameState()
-            mcts = VanilaMCTS(n_iterations=self.options["itera"][current_player],
-            depth=self.options["depths"][current_player],
-            exploration_constant=self.options["expo"][current_player],
-            state=state, player=current_player, game=self.my_game, tree = self.my_tree)
-            disable() #stdout
-            action, best_q, depth = mcts.solve()
-            enable()#stdout
-            self.my_game.setState(state+[current_player])
-            print("bestq:", round(best_q, 2), "depth:", depth, "action:", action, "card:", self.my_game.players[current_player].hand[action])
-
-            if self.options["mcts_save_actions"]:
-                line = (self.my_game.getBinaryState(current_player, action, best_q))
-                line_str = [''.join(str(x)) for x in line]
-                file_object = open(self.options["mcts_actions_path"], 'a')
-                file_object.write(str(line_str)+"\n")
-                file_object.close()
-
-            ## TODO Reuse this tree is very complex:!!!
-            # self.my_tree = mcts.tree
-            # #print(self.my_tree)
-            # print("\n\n\n\n\n\n BEST TREE", (0,)+(action, ))
-            # print(best_tree, "\n\n")
-
-            # # get all subtrees with parent!
-            # new_tree = {}
-            # for dict in self.my_tree:
-            #     #print(dict, type(dict), (self.my_tree[dict]["parent"]))
-            #     if (self.my_tree[dict]["parent"]) == (0,)+(action, ):
-            #         new_tree[(0,)+(action, )] = self.my_tree[dict]
-            #         new_tree[(0,)+(action, )]["parent"]        = (0,)
-            # new_tree[(0,)] = best_tree
-            # new_tree[(0,)]["parent"] = (0,)
-            # print(new_tree)
-            # # for i in range(0, 10):
-            # #     print("Subtree:", (0,)+(action,)+(i,))
-            # #     print(self.my_tree[(0,)+(action,)+(i,)])
-            #
-            # print(eee)
-
-        else:
-            action = self.my_game.getRandomOption_()
         return action
 
     def playVirtualCard(self, action):
@@ -376,7 +338,7 @@ class cardTableWidget(QWidget):
             self.game_play["moves"] = []
             for i, player in enumerate(self.my_game.players):
                 self.game_play["cards_player_"+str(i)] = deepcopy(player.hand)
-        rewards, round_finished = self.my_game.step_idx(action, auto_shift=False)
+        rewards, round_finished = self.my_game.step_idx_with_shift(action)
         if self.options["save_game_play"]:
             self.game_play["moves"].append([current_player, action])
             if len(self.my_game.played_cards) == 60:
@@ -398,42 +360,33 @@ class cardTableWidget(QWidget):
             self.checkFinished()
             self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1)+" Round: "+str(self.my_game.current_round+1))
 
-    def playCard(self, graphic_card_item, current_player, cards_on_table, player_name):
+    def playCard(self, graphic_card_item, current_player, label_idx, player_name):
         if graphic_card_item.player == current_player:
-            if cards_on_table == 0:
-                self.setNames()
-                self.changePlayerName(self.card1_label, player_name, highlight=0)
-                self.view.viewport().repaint()
-                time.sleep(self.options["sleepTime"])
-                graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
-                graphic_card_item.setPos(self.card1_label.pos().x(), self.card1_label.pos().y()+20)
-            elif cards_on_table == 1:
-                self.setNames()
-                self.changePlayerName(self.card2_label, player_name, highlight=0)
-                self.view.viewport().repaint()
-                time.sleep(self.options["sleepTime"])
-                graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
-                graphic_card_item.setPos(self.card2_label.pos().x(), self.card2_label.pos().y()+20)
-            elif cards_on_table == 2:
-                self.setNames()
-                self.changePlayerName(self.card3_label, player_name, highlight=0)
-                self.view.viewport().repaint()
-                time.sleep(self.options["sleepTime"])
-                graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
-                graphic_card_item.setPos(self.card3_label.pos().x(), self.card3_label.pos().y()+20)
-            elif cards_on_table == 3:
-                self.setNames()
-                self.changePlayerName(self.card4_label, player_name, highlight=0)
-                self.view.viewport().repaint()
-                time.sleep(self.options["sleepTime"])
-                graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
-                graphic_card_item.setPos(self.card4_label.pos().x(), self.card4_label.pos().y()+20)
+            graphic_card_item = self.getGraphicCard(label_idx, player_name, graphic_card_item)
             self.midCards.append(graphic_card_item)
             self.view.viewport().repaint()
             return 1 # card played!
         else:
             print("ERROR I cannot play card", graphic_card_item, "it belongs player", graphic_card_item.player, "current player is", current_player)
             return 0
+
+    def getGraphicCard(self, label_idx, player_name, graphic_card_item):
+        self.setNames()
+        if self.my_game.shifting_phase:
+            card_label        =  self.card_label_l[self.my_game.active_player]
+            self.changePlayerName(card_label, player_name, highlight=0)
+            self.view.viewport().repaint()
+            time.sleep(self.options["sleepTime"])
+            shift_round = int(self.my_game.shifted_cards/self.my_game.nu_players)
+            graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20+shift_round*50)
+        else:
+            card_label        =  self.card_label_l[label_idx]
+            self.changePlayerName(card_label, player_name, highlight=0)
+            self.view.viewport().repaint()
+            time.sleep(self.options["sleepTime"])
+            graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
+            graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20)
+        return graphic_card_item
 
     def findGraphicsCardItem_(self, my_card):
         for i in self.getCardsList():
@@ -457,9 +410,18 @@ class cardTableWidget(QWidget):
         self.card4_label.setPlainText("")
 
     def checkFinished(self):
-        if len(self.midCards)==4:
+        if self.my_game.shifting_phase:
+            return
+        if len(self.midCards)==8:
+            # deal cards again (with hand cards of shifting phase)
+            self.removeAll()
+            for i in range(len(self.my_game.players)):
+                self.deal_cards(self.my_game.players[i].hand, i, fdown=self.options["faceDown"][i])
+            self.midCards = []
+        if len(self.midCards)>=4:
             time.sleep(self.options["sleepTime"])
-            for i in self.midCards: self.removeCard(i)
+            for i in self.midCards:
+                self.removeCard(i)
             self.midCards = []
             self.removeMidNames()
 
@@ -478,7 +440,6 @@ class cardTableWidget(QWidget):
             text_item.setDefaultTextColor(Qt.black)
 
     def mouseDoubleClickEvent(self, event):
-        print("event::::", event)
         try:
             # check if item is a CardGraphicsItem
             p = event.pos()
@@ -568,8 +529,12 @@ class cardTableWidget(QWidget):
         #print("num of cards=" + str(len(self.cardsList)))
 
     def removeAll(self):
-        for i in self.getCardsList():
-            self.scene.removeItem(i)
+        try:
+            for i in (self.getCardsList()):
+                self.scene.removeItem(i)
+        except Exception as e:
+            print("Exception:", e)
+
 
     def removeCard(self, card):
         """
@@ -623,8 +588,8 @@ class cardTableWidget(QWidget):
         dy = [self.defHandSpacing, 0, self.defHandSpacing, 0]
         x, y, ang = self.playersHandsPos[playerNum-1]
         for card in cards:
-            self.addCard(card, player=playerNum, faceDown=fdown)
-            self.getCardsList()[0].setPos(x+dx[playerNum-1]*c2, y+dy[playerNum-1]*c2)
+            self.addCard(card, player=playerNum, faceDown=fdown)#add the item to the scene
+            self.getCardsList()[0].setPos(x+dx[playerNum-1]*c2, y+dy[playerNum-1]*c2)#change the position
             n += 1
             c2 += 1
 
