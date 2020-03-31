@@ -21,7 +21,7 @@ def read_file(path):
             won_games[i].append(float(splitted[i]))
     return [games, mean_reward, mean_inv_moves, won_games]
 
-def plot(array, out_path, plot_percentage=True):
+def plot(array, out_path, plot_percentage=False):
     '[games, mean_reward, mean_inv_moves]'
     games, mean_reward, mean_inv_moves, won_games = array
     ai_index = 1
@@ -41,8 +41,11 @@ def plot(array, out_path, plot_percentage=True):
     # compute max. win percentage
     maximum = max(won_games[ai_index])
     tmp_idx = won_games[ai_index].index(maximum)
-    percentage          = round(maximum/(won_games[0][tmp_idx]+won_games[1][tmp_idx]+won_games[2][tmp_idx]+won_games[3][tmp_idx])*100)
-
+    percentage = 0
+    try:
+        percentage          = round(maximum/(won_games[0][tmp_idx]+won_games[1][tmp_idx]+won_games[2][tmp_idx]+won_games[3][tmp_idx])*100)
+    except:
+        print("division")
     fig.suptitle('Performance Witches!')
     ax1.plot(games, mean_inv_moves, label="min="+str(min(mean_inv_moves))+" at Game "+str(games[min_moves_idx])+" mean rw:"+str(mean_reward[min_moves_idx]))
     ax1.legend()

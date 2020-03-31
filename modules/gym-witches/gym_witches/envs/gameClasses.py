@@ -110,6 +110,14 @@ class player(object):
 		options_list[self.getCardIndex(card)] = 1
 		return options_list
 
+	def convertAllCardState(self, state60_in):
+		#in comes a state matrix with len = 60 with 0...1..0...1
+		indices = [i for i, x in enumerate(state60_in) if int(x) == 1]
+		result  = []
+		for j in indices:
+			result.append(self.getIndexOfCard(j))
+		return result
+
 	def getBinaryOptions(self, incolor, shifting_phase=False):
 		#returns 0....1... 60x1 array BGRY 0...15 sorted
 		options_list = [0]*60
@@ -325,6 +333,7 @@ class game(object):
 		myDeck = deck()
 		myDeck.shuffle()
 		self.nu_games_played +=1
+		self.shifted_cards  = 0
 
 		if self.shift_option <2:
 			self.shift_option += 1

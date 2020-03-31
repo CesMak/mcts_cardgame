@@ -8,7 +8,7 @@ Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSY
 # Linux
 Commited Versions:
   * commit **witches_0.1** Beta shifting included in learning process
-  * commit **witches_0.2** Beta shifting included also in gui.py 
+  * commit **witches_0.2** Beta shifting included also in gui.py (fixed core dumped when playing with human)
 ```
 python gui.py
 ```
@@ -90,6 +90,21 @@ I tested the pytorch [REINFORCE](https://pytorch.org/docs/stable/distributions.h
 ![is_learning](data/imgs/is_learning.png)
 
 ## PYTORCH PPO
+### Learning Procedure
+* `state = env.reset()`
+  + with state: 240x1
+  + state = on_table, on_hand, played, play_options (each 60x1 one-hot encoded)
+  + *get the state right before ai_player has to play!*
+* action = ppo_test.policy_old.act(state, memory)
+state, reward, done, nu_games_won = env.step(action)
+
+## TODO
+* Tune Hyperparameters in current ppo_witches.py
+* Wie sagen, dass shifting phase ist?
+* Test if after shift phase player has new cards (in his options!)
+* Monitor value, loss, entropy
+* Use vectorenv test baselines custom environment  
+
 * See file  [**modules/ppo_witches.py**](https://github.com/CesMak/mcts_cardgame/blob/master/modules/ppo_witches.py).
 * First I learned without discounted rewards:
 * ![is_learning](data/imgs/no_discounting.png)
@@ -105,13 +120,18 @@ I tested the pytorch [REINFORCE](https://pytorch.org/docs/stable/distributions.h
   * Can still be better!
   * Plays to greedy (always captures blue 11)
   * Plays Joker to early!
-* Further TODO:
-* Include shifting properly! (in the learning process and in the game)
 
-* Including shifting phase
-* First  move: shift 1 card (possible cards are all cards on hand)
-* Second move: shift 1 card (possible cards are all on hand except already shifted one)
-* Third  move: play a card.
+* Include shifting
+  * First  move: shift 1 card (possible cards are all cards on hand)
+  * Second move: shift 1 card (possible cards are all on hand except already shifted one)
+  * Third  move: play a card.
+  + seems not to learn that now is a shift phase!
+  + using 1 in on table cards during shift phase
+  + Test if after shift phase player has new cards (in his options!)
+
+* PPO Hyperparameter Tuning
+  + if gets bader again at some point lower the lr (to be adjusted first)
+  +
 
 * Training against trained players
   + is computationally expensive (use path instead of .onnx)

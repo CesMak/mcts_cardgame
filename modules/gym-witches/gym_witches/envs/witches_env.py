@@ -80,21 +80,41 @@ class WitchesEnv(gym.Env):
     def step_withShift(self, action):
         # SET self.use_shifting = True
         assert self.action_space.contains(action)
-        # play until ai!
-        reward = self.playRound(action)
+        # now has to play AI!!!
+        reward = self.play_ai_move(action)
         done = False
         if reward == -100:
             # illegal move, just do not play Card!
             state= self.my_game.getState()
             #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
-            self.my_game.total_rewards[self.reinfo_index] -=100
-            return state.flatten(), float(reward), True, np.zeros(4,)
-        if len(self.my_game.players[self.my_game.active_player].hand) == 0: # game finished
-            done = True
-        rewards, done = self.playUnitlAI()
-        state= self.my_game.getState()
-        self.updateTotalResult()
-        return state.flatten(), float(reward)+21, done, self.number_of_won
+            self.my_game.total_rewards[self.reinfo_index] -=500
+            return state.flatten(), -500, True, np.zeros(4,)
+        else:
+            rewards, done = self.playUnitlAI()
+            state         = self.my_game.getState()
+            self.updateTotalResult()
+            return state.flatten(), self.my_game.total_rewards[self.reinfo_index]+100, done, self.number_of_won
+
+    def play_ai_move(self, ai_action):
+        ' ai_action is an absolute 0....60 action index! (no hand card index)'
+        current_player =  self.my_game.active_player
+        if "REINFO"  in self.my_game.ai_player[current_player]:
+            valid_options_idx = self.my_game.getValidOptions(current_player)
+            card   = self.my_game.players[current_player].getIndexOfCard(ai_action)
+            player_has_card = self.my_game.players[current_player].hasSpecificCardOnHand(card)
+            tmp = self.my_game.players[current_player].specificIndexHand(card)
+            if player_has_card and tmp in valid_options_idx:
+                # if self.use_shifting and self.my_game.shifting_phase:
+                #     print("[{}] {} {}\t shifts {}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, ai_action, len(self.my_game.players[current_player].hand)))
+                # else:
+                #     print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, ai_action, len(self.my_game.players[current_player].hand)))
+                rewards, round_finished = self.my_game.step_idx_with_shift(tmp)
+                return rewards[self.reinfo_index]
+            else:
+                return -100
+        else:
+            print("!!!!!!!!ERROR!!!!!!!!!!!!!!! ai should play now!!")
+            return None
 
     def step(self, action):
         assert self.action_space.contains(action)
@@ -119,6 +139,7 @@ class WitchesEnv(gym.Env):
         # state = on_table, on_hand, played, options for current player!
         #print("\nReset Game")
         self.my_game.reset_game()
+        #print(self.my_game.shifted_cards)
         # Play until AI!
         self.playUnitlAI()
         state = self.my_game.getState()
@@ -157,6 +178,7 @@ class WitchesEnv(gym.Env):
                 else:
                     action = self.my_game.getRandomOption_()
                 card   = self.my_game.players[current_player].hand[action]
+                # print("use_shifting:", self.use_shifting,  "my_game-shifting_phase:", self.my_game.shifting_phase, self.my_game.shifted_cards)
                 # if self.use_shifting and self.my_game.shifting_phase:
                 #     print("[{}] {} {}\t shifts {}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
                 # else:

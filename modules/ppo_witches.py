@@ -15,6 +15,9 @@ import numpy as np
 import os
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+#used for testing:
+from gameClasses import player
+
 ## # TODO:
 # Schaue wie big2 hearts aufgebaut ist was sind die hyperparameter was die rewards? (discount factor?)
 # Nute dann das hier!
@@ -445,6 +448,16 @@ def test_trained_model(path):
         total_games_won +=nu_games_won
     print(total_games_won[1]/max_games*100, "% won", total_games_won, "invalid_moves:", total_nu_of_wrong_moves, total_stats)
 
+def state2Cards(in_state):
+    print("State before played:")
+    player_test    =player("test_name")
+    result = [] # on_table, on_hand, played, play_options
+    for i in [ in_state[0:60], in_state[60:120], in_state[120:180], in_state[180:240]]:
+        result.append( player_test.convertAllCardState(i))
+    for j,k in zip(result,["on_table", "on_hand", "played", "options"]):
+        print(k, len(j), j, "\n")
+
+
 def main():
     #stdout.write_file("hallo.txt")
     ############## Hyperparameters ##############
@@ -467,13 +480,13 @@ def main():
     # THIS DEPENDS IF YOU DO ALLOW TO LEARN THE RULES!
     n_latent_var    = 64            # number of variables in hidden layer
     update_timestep = 2000             # before 5 in big2 = 5
-    lr              = 25*1e-3      # in big2game:  0.00025
+    lr              = 0.002      # in big2game:  0.00025
     gamma           = 0.99
     betas           = (0.9, 0.999)
-    K_epochs        = 5               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
-    eps_clip        = 0.1             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
+    K_epochs        = 50               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
+    eps_clip        = 0.4             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
     random_seed     = None
-    decay           = 100000
+    decay           = 30000
     #############################################
 
     if random_seed:
@@ -494,23 +507,26 @@ def main():
     total_number_of_games_played = 0
     total_rewards  = 0
     total_games_won = np.zeros(4,)
-    max_wins = 100
+    max_wins = -100
 
     # training loop
     for i_episode in range(1, max_episodes+1):
         timestep += 1
         state = env.reset()
-        done  = 0
+        done  = False
         while not done:
             # Running policy_old:
             # state has to be right before the AI Plays!
+            #state2Cards(state)
             action = ppo.policy_old.act(state, memory)
 
             # this should be the reward for the above action
             # this is the new state! when the ai player is again
             # step_withShift  stepEndReward
+
             state, reward, done, nu_games_won = env.step_withShift(action)
-            if reward==-100:
+
+            if reward==-500:
                 invalid_moves +=1
 
             total_rewards += reward
@@ -532,12 +548,12 @@ def main():
 
         if i_episode % log_interval == 0:
             total_reward_per_game_positive = total_rewards/log_interval
-            per_game_reward = total_reward_per_game_positive-15*21
+            per_game_reward = total_reward_per_game_positive-17*100
             games_won = str(np.array2string(total_games_won))
             # total_rewards per game should be maximized!!!!
             aaa = ('Game ,{:07d}, reward ,{:0.5}, inv ,{:4.4}, games_won ,{},  Time ,{},\n'.format(total_number_of_games_played, per_game_reward, invalid_moves/log_interval, games_won, datetime.datetime.now()-start_time))
             print(aaa)
-            if per_game_reward>-6 and per_game_reward>max_wins:
+            if per_game_reward>-100 and per_game_reward>max_wins:
                  path =  'ppo_models/PPO_{}_{}_{}'.format(env_name, per_game_reward, total_games_won[1])
                  torch.save(ppo.policy.state_dict(), path+".pth")
                  torch.onnx.export(ppo.policy_old.action_layer, torch.rand(240), path+".onnx")

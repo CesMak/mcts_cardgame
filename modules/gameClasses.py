@@ -102,6 +102,14 @@ class player(object):
 	def getHandCardsSorted(self):
 		return sorted(self.hand, key = lambda x: ( x.color,  x.value))
 
+	def convertAllCardState(self, state60_in):
+		#in comes a state matrix with len = 60 with 0...1..0...1
+		indices = [i for i, x in enumerate(state60_in) if int(x) == 1]
+		result  = []
+		for j in indices:
+			result.append(self.getIndexOfCard(j))
+		return result
+		
 	def getRandomOption(self, incolor):
 		options_list = [0]*60
 		options      = self.getOptions(incolor)
