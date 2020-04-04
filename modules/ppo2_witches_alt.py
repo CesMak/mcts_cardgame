@@ -1,5 +1,4 @@
 #https://github.com/seungeunrho/minimalRL/blob/master/ppo.py
-import os
 import gym
 import gym_witches
 import datetime
@@ -10,15 +9,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
-#used for testing:
-from gameClasses import player
 
-#Max Reward to achieve: 8.5+1
-#result_reward+=(rewards[self.reinfo_index]+21)/26  -->8.5+17*(21/26)=8.5+13.73=22.23 (für nuller runde!)
-# 13.73 = nuller runde!
-#Max corr moves: 17
 
-#Hyperparameters (for starting)
+#Hyperparameters
 learning_rate = 0.0005
 gamma         = 0.98
 lmbda         = 0.95
@@ -28,48 +21,33 @@ T_horizon     = 20  #update_timestep
 # beta
 # eps_clip adam
 
-# for learning further:
-# learning_rate = 0.0000005
-# gamma         = 0.98
-# lmbda         = 0.99   #0.9 to 1
-# eps_clip      = 0.005
-# K_epoch       = 3
-# T_horizon     = 20  #update_timestep
-
 #Model Parameter
-latent_layers  = 256 #64 was not as good as 256
+latent_layers  = 256
 
 #Logging params
 print_interval = 2000
 
-
-log_path       = "logging.txt"
-print(os.getcwd()+"/"+log_path)
+log_path      = "logging.txt"
 try:
     os.remove(os.getcwd()+"/"+log_path)
 except:
     print("No Logging to be removed!")
 start_time = datetime.datetime.now()
 
-env   = gym.make("Witches-v0")
-
 class ActorMod(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var):
         super(ActorMod, self).__init__()
-        self.l1      = nn.Linear(state_dim-60, n_latent_var)
-        self.l1_prelu = nn.PReLU()
+        self.l1      = nn.Linear(state_dim, n_latent_var)
+        self.l1_tanh = nn.PReLU()
         self.l2      = nn.Linear(n_latent_var, n_latent_var)
-        self.l2_prelu = nn.PReLU()
+        self.l2_tanh = nn.PReLU()
         self.l3      = nn.Linear(n_latent_var+60, action_dim)
 
     def forward(self, input):
-        if input.shape[0]==240:
-            x = self.l1(input[0:180])
-        else:
-            x = self.l1(input[:,0:180])
-        x = self.l1_prelu(x)
+        x = self.l1(input)
+        x = self.l1_tanh(x)
         x = self.l2(x)
-        out1 = self.l2_prelu(x) # 64x1
+        out1 = self.l2_tanh(x) # 64x1
         if len(input.shape)==1:
             out2 = input[180:240]   # 60x1 this are the available options of the active player!
             output =torch.cat( [out1, out2], 0)
@@ -85,18 +63,18 @@ class PPO(nn.Module):
         self.data = []
 
         #value function: fc1 layer
-        #viel besser als 3 layer von zuvor!
-        self.fc1   = nn.Linear(state_dim-60,n_latent_var)
-        self.fc2   = nn.Linear(n_latent_var,n_latent_var)
-        self.fc_v  = nn.Linear(n_latent_var,1)
+        self.fc1   = nn.Linear(state_dim,  n_latent_var)
+        self.fc_v  = nn.Linear(n_latent_var, 1)
 
         #action:layer:
         self.action_layer = ActorMod(state_dim, action_dim, n_latent_var)
+
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        #self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100000, gamma=0.9)
+        #return self.action_layer
+
+        # value function:
     def v(self, x):
-        x = F.relu(self.fc1(x[:,0:180]))
-        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc1(x))
         v = self.fc_v(x)
         return v
 
@@ -144,32 +122,22 @@ class PPO(nn.Module):
 
             surr1 = ratio * advantage
             surr2 = torch.clamp(ratio, 1-eps_clip, 1+eps_clip) * advantage
-            actor_loss  = -torch.min(surr1, surr2)
-            critic_loss = F.smooth_l1_loss(self.v(s) , td_target.detach())# alternative: 0.5*self.MseLoss(state_values, torch.tensor(rewards))
-            #beta       = 0.01 # encourage to explore different policies let at 0.01
-            total_loss = critic_loss+actor_loss#- beta*dist_entropy
+            loss = -torch.min(surr1, surr2) + F.smooth_l1_loss(self.v(s) , td_target.detach())
 
             self.optimizer.zero_grad()
-            total_loss.mean().backward()
+            loss.mean().backward()
             self.optimizer.step()
-        #self.scheduler.step()#sheduler to lower the learning rate !
 
-def state2Cards(in_state):
-    print("State before played:")
-    player_test    =player("test_name")
-    result = [] # on_table, on_hand, played, play_options
-    for i in [ in_state[0:60], in_state[60:120], in_state[120:180], in_state[180:240]]:
-        result.append( player_test.convertAllCardState(i))
-    for j,k in zip(result,["on_table", "on_hand", "played", "options"]):
-        print(k, len(j), j, "\n")
-
-def train(model):
+def main():
+    env   = gym.make("Witches-v0")
+    model = PPO(240, 60, latent_layers)
     timestep = 0
     score = 0.0
     moves = 0.0 # correct moves.
     games_won = np.zeros(4,)
     total_ai  = 0.0
     save_model_min =0.0
+
     for n_epi in range(100000000):
         timestep += 1
         s = env.reset()
@@ -178,11 +146,10 @@ def train(model):
             prob = model.action_layer(torch.from_numpy(s).float())
             m = Categorical(prob)
             a = m.sample().item()
-            state, r, done, info = env.step(a) # state=on_table, on_hand, played, play_options]
+            state, r, done, info = env.step(a)
             model.put_data((s, a, r, state, prob[a].item(), done))
-            #print(state2Cards(state))
             s = state
-        score    += r
+            score += r
         moves    +=info["correct_moves"]
         games_won+=info["number_of_won"]
         total_ai +=info["total"]
@@ -194,8 +161,7 @@ def train(model):
         if n_epi%print_interval==0 and n_epi!=0:
             mean_score = score/print_interval
             mean_moves = moves/print_interval
-            mean_total = total_ai/print_interval
-            aaa = ('Game ,{:07d}, reward ,{:0.5}, corr ,{:4.4}, games_won ,{}, total ,{},  Time ,{},\n'.format(n_epi, mean_score, mean_moves, games_won,mean_total, datetime.datetime.now()-start_time))
+            aaa = ('Game ,{:07d}, reward ,{:0.5}, inv ,{:4.4}, games_won ,{},  Time ,{},\n'.format(n_epi, mean_score, mean_moves, games_won, datetime.datetime.now()-start_time))
             print(aaa)
             if (mean_score>=save_model_min):
                 save_model_min = mean_score
@@ -207,18 +173,10 @@ def train(model):
             score      = 0.0
             moves      = 0.0
             total_ai   = 0.0
-            games_won  = np.zeros(4,)
+            games_wo   = np.zeros(4,)
 
 
-def learn_further(pretrained_path):
-    model = PPO(240, 60, latent_layers)
-    model.action_layer.load_state_dict(torch.load(pretrained_path))
-    train(model)
-
-def main():
-    model = PPO(240, 60, latent_layers)
-    train(model)
+    env.close()
 
 if __name__ == '__main__':
     main()
-    #learn_further("ppo_models/PPO_Witches-v0_11.305249999992009_101.0.pth")

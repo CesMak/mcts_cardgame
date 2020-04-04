@@ -463,9 +463,6 @@ class game(object):
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor(), self.shifting_phase)
 		on_table, on_hand, played = self.getmyState(self.active_player)
-		# if self.shifting_phase:
-		# 	for i in range(len(on_table)):
-		# 		on_table[i]    = 1.00
 		return np.asarray([on_table, on_hand, played, play_options])
 
 	def getBinaryStateFirstCard(self, playeridx, action):
@@ -580,14 +577,14 @@ class game(object):
 			self.active_player = self.getNextPlayer()
 
 		finished = self.isGameFinished()
-		self.assignRewards()
 		if finished is not None:
+			self.assignRewards()
 			self.total_rewards += self.rewards
 			# CAUTION CHANGED: before:return self.rewards, True
-			return self.rewards, True
+			return trick_rewards, True
 		else:
 			# trick value is not 100% the local value as 11 red etc. have future effects!
-			return self.rewards, round_finished
+			return trick_rewards, round_finished
 
 	def shiftCard(self, card_idx, current_player, next_player):
 		# shift round = 0, 1, ... (for 2 shifted cards)

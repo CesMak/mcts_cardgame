@@ -23,7 +23,6 @@ class WitchesEnv(gym.Env):
         self.observation_space = gym.spaces.MultiBinary(240)
 
         # Create the game:
-        self.reward_before = 0
         self.options = {}
         self.number_of_won = [0, 0, 0, 0]
         self.saved_results = np.zeros(4,)
@@ -36,8 +35,7 @@ class WitchesEnv(gym.Env):
 
         self.use_shifting = True
 
-    # Continuous Rewarding!!
-    def step_reward_every_step(self, action):
+    def step(self, action):
         # SET self.use_shifting = True
         assert self.action_space.contains(action)
         # now has to play AI!!!line
@@ -62,34 +60,6 @@ class WitchesEnv(gym.Env):
             result_reward=(rewards[self.reinfo_index]+21)/26
             return state.flatten().astype(np.int), result_reward, done, {"number_of_won": self.number_of_won, "correct_moves": self.correct_moves, "total":self.my_game.total_rewards[self.reinfo_index]}
 
-
-    def step(self, action):
-        # SET self.use_shifting = True
-        assert self.action_space.contains(action)
-        # now has to play AI!!!line
-        reward = self.play_ai_move(action)
-        done = False
-        if reward == -100:
-            # illegal move, just do not play Card!
-            state= self.my_game.getState()
-            #print("\nGo out of Step with ai_reward:", reward, "Done:", done)
-            self.my_game.total_rewards[self.reinfo_index] -=100
-            return state.flatten().astype(np.int), -1.0, True, {"number_of_won": self.number_of_won, "correct_moves": self.correct_moves, "total":self.my_game.total_rewards[self.reinfo_index]}
-        else:
-            rewards, done = self.playUnitlAI()
-            state         = self.my_game.getState()
-            self.updateTotalResult()
-            #result_reward = 0.5 # correct move
-            self.correct_moves +=1
-            #Is to hard to learn only at end of phase:
-            #if done:
-            #    result_reward += (self.my_game.total_rewards[self.reinfo_index]+60)/65
-            #print(rewards)
-            dis =  (rewards[self.reinfo_index]+21)/26-self.reward_before
-            #print(dis, rewards[self.reinfo_index]-self.reward_before)
-            self.reward_before = (rewards[self.reinfo_index]+21)/26
-            return state.flatten().astype(np.int), (dis+21)/26, done, {"number_of_won": self.number_of_won, "correct_moves": self.correct_moves, "total":self.my_game.total_rewards[self.reinfo_index]}
-
     def play_ai_move(self, ai_action):
         ' ai_action is an absolute 0....60 action index! (no hand card index)'
         current_player =  self.my_game.active_player
@@ -112,12 +82,10 @@ class WitchesEnv(gym.Env):
             return None
 
     def reset(self):
-        #print("Reset game")
         self.my_game.reset_game()
         self.playUnitlAI()
         state = self.my_game.getState()
         self.correct_moves = 0
-        self.reward_before = 0
         self.number_of_won = [0, 0, 0, 0]
         return state.flatten().astype(np.int)
 
@@ -154,7 +122,7 @@ class WitchesEnv(gym.Env):
                 else:
                     action = self.my_game.getRandomOption_()
                 card   = self.my_game.players[current_player].hand[action]
-                #print("use_shifting:", self.use_shifting,  "my_game-shifting_phase:", self.my_game.shifting_phase, self.my_game.shifted_cards)
+                # print("use_shifting:", self.use_shifting,  "my_game-shifting_phase:", self.my_game.shifting_phase, self.my_game.shifted_cards)
                 # if self.use_shifting and self.my_game.shifting_phase:
                 #     print("[{}] {} {}\t shifts {}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
                 # else:

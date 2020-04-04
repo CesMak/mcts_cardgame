@@ -90,20 +90,16 @@ I tested the pytorch [REINFORCE](https://pytorch.org/docs/stable/distributions.h
 ![is_learning](data/imgs/is_learning.png)
 
 ## PYTORCH PPO
-### Learning Procedure
-* `state = env.reset()`
+### Learning Procedure  (gym interface)
+* `python state = env.reset()`
   + with state: 240x1
   + state = on_table, on_hand, played, play_options (each 60x1 one-hot encoded)
   + *get the state right before ai_player has to play!*
-* action = ppo_test.policy_old.act(state, memory)
-state, reward, done, nu_games_won = env.step(action)
+* `python action = ppo_test.policy_old.act(state, memory)`
+* `python state, reward, done, nu_games_won = env.step(action)`
 
-## TODO
-* Tune Hyperparameters in current ppo_witches.py
-* Wie sagen, dass shifting phase ist?
-* Test if after shift phase player has new cards (in his options!)
-* Monitor value, loss, entropy
-* Use vectorenv test baselines custom environment  
+### PPO with Monte Carlo Reward Estimation
+No GAE used. See the file **ppo_witches.py**
 
 * See file  [**modules/ppo_witches.py**](https://github.com/CesMak/mcts_cardgame/blob/master/modules/ppo_witches.py).
 * First I learned without discounted rewards:
@@ -121,6 +117,34 @@ state, reward, done, nu_games_won = env.step(action)
   * Plays to greedy (always captures blue 11)
   * Plays Joker to early!
 
+* PPO Hyperparameter Tuning
+  + if gets bader again at some point lower the lr (to be adjusted first)
+* Training against trained players
+  + is computationally expensive (use path instead of .onnx)
+  + Has not a big effect (correct hyperparams not found yet?)
+  + Tested gamma=0.7  -> almost no effect
+  + Tested update timestep = 5 -> almost no effect
+  + Example 35% : Game ,0018000, rew ,-5.351, inv_mo ,0.0025, won ,[48. 79. 51. 58.],  Time ,0:07:40.390401
+
+### PPO with gae
+See the file **ppo2_witches.py**
+
+### PPO with LSTM
+See the file **ppo3_witches.py**
+
+### Test Baselines
+  * Tested baselines see **ppo_baselines.py**
+  + Need of constructing own model! (Damit auch zuege lernt)
+  + Not so easy to use (export as onnx etc.)
+
+
+## TODO
+* Tune Hyperparameters in current ppo_witches.py
+* Wie sagen, dass shifting phase ist?
+* Test if after shift phase player has new cards (in his options!)
+* Monitor value, loss, entropy
+* Use vectorenv test baselines custom environment  
+
 * Include shifting
   * First  move: shift 1 card (possible cards are all cards on hand)
   * Second move: shift 1 card (possible cards are all on hand except already shifted one)
@@ -129,16 +153,8 @@ state, reward, done, nu_games_won = env.step(action)
   + using 1 in on table cards during shift phase
   + Test if after shift phase player has new cards (in his options!)
 
-* PPO Hyperparameter Tuning
-  + if gets bader again at some point lower the lr (to be adjusted first)
-  +
+  * Test minimal ppo implementation with GAE
 
-* Training against trained players
-  + is computationally expensive (use path instead of .onnx)
-  + Has not a big effect (correct hyperparams not found yet?)
-  + Tested gamma=0.7  -> almost no effect
-  + Tested update timestep = 5 -> almost no effect
-  + Example 35% : Game ,0018000, rew ,-5.351, inv_mo ,0.0025, won ,[48. 79. 51. 58.],  Time ,0:07:40.390401
 
 # Further Notes
 ## MCTS

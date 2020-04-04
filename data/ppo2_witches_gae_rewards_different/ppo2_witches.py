@@ -10,9 +10,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
-#used for testing:
-from gameClasses import player
-
 #Max Reward to achieve: 8.5+1
 #result_reward+=(rewards[self.reinfo_index]+21)/26  -->8.5+17*(21/26)=8.5+13.73=22.23 (für nuller runde!)
 # 13.73 = nuller runde!
@@ -56,20 +53,17 @@ env   = gym.make("Witches-v0")
 class ActorMod(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var):
         super(ActorMod, self).__init__()
-        self.l1      = nn.Linear(state_dim-60, n_latent_var)
-        self.l1_prelu = nn.PReLU()
+        self.l1      = nn.Linear(state_dim, n_latent_var)
+        self.l1_tanh = nn.ReLU()
         self.l2      = nn.Linear(n_latent_var, n_latent_var)
-        self.l2_prelu = nn.PReLU()
+        self.l2_tanh = nn.ReLU()
         self.l3      = nn.Linear(n_latent_var+60, action_dim)
 
     def forward(self, input):
-        if input.shape[0]==240:
-            x = self.l1(input[0:180])
-        else:
-            x = self.l1(input[:,0:180])
-        x = self.l1_prelu(x)
+        x = self.l1(input)
+        x = self.l1_tanh(x)
         x = self.l2(x)
-        out1 = self.l2_prelu(x) # 64x1
+        out1 = self.l2_tanh(x) # 64x1
         if len(input.shape)==1:
             out2 = input[180:240]   # 60x1 this are the available options of the active player!
             output =torch.cat( [out1, out2], 0)
@@ -86,8 +80,7 @@ class PPO(nn.Module):
 
         #value function: fc1 layer
         #viel besser als 3 layer von zuvor!
-        self.fc1   = nn.Linear(state_dim-60,n_latent_var)
-        self.fc2   = nn.Linear(n_latent_var,n_latent_var)
+        self.fc1   = nn.Linear(state_dim,n_latent_var)
         self.fc_v  = nn.Linear(n_latent_var,1)
 
         #action:layer:
@@ -95,8 +88,7 @@ class PPO(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         #self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100000, gamma=0.9)
     def v(self, x):
-        x = F.relu(self.fc1(x[:,0:180]))
-        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc1(x))
         v = self.fc_v(x)
         return v
 
@@ -144,24 +136,12 @@ class PPO(nn.Module):
 
             surr1 = ratio * advantage
             surr2 = torch.clamp(ratio, 1-eps_clip, 1+eps_clip) * advantage
-            actor_loss  = -torch.min(surr1, surr2)
-            critic_loss = F.smooth_l1_loss(self.v(s) , td_target.detach())# alternative: 0.5*self.MseLoss(state_values, torch.tensor(rewards))
-            #beta       = 0.01 # encourage to explore different policies let at 0.01
-            total_loss = critic_loss+actor_loss#- beta*dist_entropy
+            loss = -torch.min(surr1, surr2) + F.smooth_l1_loss(self.v(s) , td_target.detach())
 
             self.optimizer.zero_grad()
-            total_loss.mean().backward()
+            loss.mean().backward()
             self.optimizer.step()
         #self.scheduler.step()#sheduler to lower the learning rate !
-
-def state2Cards(in_state):
-    print("State before played:")
-    player_test    =player("test_name")
-    result = [] # on_table, on_hand, played, play_options
-    for i in [ in_state[0:60], in_state[60:120], in_state[120:180], in_state[180:240]]:
-        result.append( player_test.convertAllCardState(i))
-    for j,k in zip(result,["on_table", "on_hand", "played", "options"]):
-        print(k, len(j), j, "\n")
 
 def train(model):
     timestep = 0
@@ -178,9 +158,8 @@ def train(model):
             prob = model.action_layer(torch.from_numpy(s).float())
             m = Categorical(prob)
             a = m.sample().item()
-            state, r, done, info = env.step(a) # state=on_table, on_hand, played, play_options]
+            state, r, done, info = env.step(a)
             model.put_data((s, a, r, state, prob[a].item(), done))
-            #print(state2Cards(state))
             s = state
         score    += r
         moves    +=info["correct_moves"]

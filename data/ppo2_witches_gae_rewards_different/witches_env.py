@@ -85,9 +85,9 @@ class WitchesEnv(gym.Env):
             #if done:
             #    result_reward += (self.my_game.total_rewards[self.reinfo_index]+60)/65
             #print(rewards)
-            dis =  (rewards[self.reinfo_index]+21)/26-self.reward_before
+            dis =  ((rewards[self.reinfo_index]-self.reward_before)+21)/26
             #print(dis, rewards[self.reinfo_index]-self.reward_before)
-            self.reward_before = (rewards[self.reinfo_index]+21)/26
+            self.reward_before = rewards[self.reinfo_index]
             return state.flatten().astype(np.int), (dis+21)/26, done, {"number_of_won": self.number_of_won, "correct_moves": self.correct_moves, "total":self.my_game.total_rewards[self.reinfo_index]}
 
     def play_ai_move(self, ai_action):

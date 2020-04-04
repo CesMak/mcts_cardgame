@@ -382,8 +382,8 @@ def learnfurther(path):
         state = env.reset()
         while not done:
             action = ppo_learn.policy_old.act(state, memory)
-            state, reward, done, nu_games_won = env.step(action)
-            if reward==-100:
+            state, reward, done, nu_games_won = env.step_withShift(action)
+            if reward==-500:
                 invalid_moves +=1
             total_rewards += reward
             memory.rewards.append(reward)
@@ -486,7 +486,7 @@ def main():
     K_epochs        = 50               # update policy for K epochs in big2game:nOptEpochs = 5  typical 3 - 10 is the number of passes through the experience buffer during gradient descent.
     eps_clip        = 0.4             # clip parameter for PPO Setting this value small will result in more stable updates, but will also slow the training process.
     random_seed     = None
-    decay           = 30000
+    decay           = 30
     #############################################
 
     if random_seed:
@@ -570,8 +570,8 @@ def main():
 
 if __name__ == '__main__':
     start_time = datetime.datetime.now()
-    main()
-    #learnfurther("ppo_models/mc_rewards_512_72_3_03.pth")
+    #main()
+    learnfurther("ppo_models/mc_rewards_512_72_3_03.pth")
 
     # PPO_Witches-v0_41.0222.pth  (128) 49.7 % won [161. 497. 170. 172.] invalid_moves: 407 None   # Trained without reset
     # PPO_Witches-v0_7.0.pth      (256) 51.0 % won [151. 510. 166. 173.] invalid_moves: 244 None   # Trained with reset
