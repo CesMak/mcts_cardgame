@@ -103,7 +103,7 @@ No GAE used. See the file **ppo_witches.py**
 
 * See file  [**modules/ppo_witches.py**](https://github.com/CesMak/mcts_cardgame/blob/master/modules/ppo_witches.py).
 * First I learned without discounted rewards:
-* ![is_learning](data/imgs/no_discounting.png)
+* ![is_learning-img](data/imgs/no_discounting_final.png)
 * Problem: The learning stopped to early (it was a short sighted learning) see also [here](https://github.com/henrycharlesworth/big2_PPOalgorithm/issues/9)
 * Next I included the mc rewards and played around with the hyper-parameters:
 ![is_learning](data/imgs/discounted_rewards.png)
@@ -136,7 +136,6 @@ See the file **ppo3_witches.py**
   * Tested baselines see **ppo_baselines.py**
   + Need of constructing own model! (Damit auch zuege lernt)
   + Not so easy to use (export as onnx etc.)
-
 
 ## TODO
 * Tune Hyperparameters in current ppo_witches.py
