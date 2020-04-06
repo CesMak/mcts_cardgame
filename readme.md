@@ -103,7 +103,7 @@ No GAE used. See the file **ppo_witches.py**
 
 * See file  [**modules/ppo_witches.py**](https://github.com/CesMak/mcts_cardgame/blob/master/modules/ppo_witches.py).
 * First I learned without discounted rewards:
-* ![is_learning-img](data/imgs/no_discounting_final.png)
+* ![is_learning-img](data/imgs/nodiscounting_final.png)
 * Problem: The learning stopped to early (it was a short sighted learning) see also [here](https://github.com/henrycharlesworth/big2_PPOalgorithm/issues/9)
 * Next I included the mc rewards and played around with the hyper-parameters:
 ![is_learning](data/imgs/discounted_rewards.png)
@@ -125,6 +125,34 @@ No GAE used. See the file **ppo_witches.py**
   + Tested gamma=0.7  -> almost no effect
   + Tested update timestep = 5 -> almost no effect
   + Example 35% : Game ,0018000, rew ,-5.351, inv_mo ,0.0025, won ,[48. 79. 51. 58.],  Time ,0:07:40.390401
+
+**05.04.2020 - adjustements for learning correct moves**
+at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewards with -100 in case of wrong move and with trick reward+21 in case of correct move.
++ change input to 180 and see if improves     **NO does not learn faster, use also options at input state**
++ change value layer and see if it improves   **NO does not learn faster, use seperate**
++ include shifting? and see what is changing
+  + rewarding with total current rewards seems also to work (changed gameClasses with newest one)
+  + So far it seems to work however, correct moves and invalid moves has different meaning inv_moves = 0.0455 correct moves = 16.23
+  + Including some additional states has helped!
+  + Found a new best player **rl_path11_op** win rate of 95% against random player! With shifting:
+  ![95_percent_winner_mc_rewarding-img](data/imgs/95_percent_winner_mc_rewarding.png)
+  **new player is rl0**
+  ![95_percent_winner_mc_rewarding-img](data/imgs/95_percent_rl0.png)
+  + See commit **95_precent_mc_rewarding_winner**
+  + Play 10 rounds against this player as a human!
+  + Note that current rewarding aims to find yellow 11 as fast as possible!
+  + Next play against pretrained copys
+
+* how to reward?
+* works also with and without step?
+* max. should be 0.001 invalid moves in 2000 games or episodes?
+* reset to  best_learning_mc and see how fast it learns correct moves ....
+
++ anderer Zustand:
+  * For each opponent is in shifing phase
+  * For each opponent has in offhand [11 and 12, 13, 14, J] -> 15 states
+  * Not has... color x
+  * Control before
 
 ### PPO with gae
 See the file **ppo2_witches.py**
