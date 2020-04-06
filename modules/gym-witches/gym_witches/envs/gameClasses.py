@@ -73,6 +73,7 @@ class player(object):
 		self.offhand      = [] # contains won cards of each round (for 4 players 4 cards!)
 		self.total_result = 0  # the total result as noted down in a book!
 		self.take_hand    = [] # cards in first phase cards to take!
+		self.colorFree    = [0.0, 0.0, 0.0, 0.0] # 1.0 means other know that your are free of this color B G R Y
 		#self.player_style = style # 0: play random card, 1: play card with lowest value, 2: ai player
 
 	def sayHello(self):
@@ -189,11 +190,20 @@ class player(object):
 			result_idx = 15*3+card.value-1
 		return result_idx
 
+	def setColorFree(self, color):
+		if color =="B":
+			self.colorFree[0] = 1.0
+		elif color =="G":
+			self.colorFree[1] = 1.0
+		elif color == "R":
+			self.colorFree[2] = 1.0
+		elif color =="Y":
+			self.colorFree[3]  = 1.0
+
 	def getOptions(self, incolor, orderOptions=0):
 		# incolor = None -> Narr was played played before
 		# incolor = None -> You can start!
 		#	In both cases return all options as cards
-
 		options = []
 		hasColor = False
 		if incolor is None:
@@ -213,6 +223,8 @@ class player(object):
 			options = [] # necessary otherwise joker double!
 			for i, card in enumerate(self.hand):
 				options.append([i, card])
+			if not self.hasJoker() and incolor is not None:
+				self.setColorFree(incolor)
 		if orderOptions: return sorted(options, key = lambda x: ( x[1].color,  x[1].value))
 		return options
 
@@ -226,6 +238,12 @@ class player(object):
 				minimum_value=card.value
 				index        = i
 		return index
+
+	def hasJoker(self):
+		for i in ["Y", "R", "G", "B"]:
+			if self.hasSpecificCard(14, i):
+				return True
+		return False
 
 	def hasYellowEleven(self):
 		return self.hasSpecificCard(11, "Y")
@@ -448,25 +466,27 @@ class game(object):
 
 	def convertAvailableActions(self, availAcs):
 		#convert from (1,0,0,1,1...) to (0, -math.inf, -math.inf, 0,0...) etc
-		#availAcs = np.asarray(availAcs)
 		for j, i in enumerate(availAcs):
 			if i == 1:
 				availAcs[j]=0
 			if i == 0:
 				availAcs[j]=-math.inf
-		# availAcs[np.nonzero(availAcs==0)] = -math.inf
-		# availAcs[np.nonzero(availAcs==1)] = 0
 		return np.asarray(availAcs)
 
 	def getState(self):
 		#    return self.playersGo, self.neuralNetworkInputs[self.playersGo].reshape(1,412), convertAvailableActions(self.returnAvailableActions()).reshape(1,1695)
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor(), self.shifting_phase)
+		#play_options = self.convertAvailableActions(play_options)
 		on_table, on_hand, played = self.getmyState(self.active_player)
+		add_states = [] #48= with has cards,+12=60 for does not have card anymore...
+		for i in range(len(self.players)):
+			if i!=self.active_player:
+				add_states.extend(self.getAdditionalState(i))
 		# if self.shifting_phase:
 		# 	for i in range(len(on_table)):
 		# 		on_table[i]    = 1.00
-		return np.asarray([on_table, on_hand, played, play_options])
+		return np.asarray([on_table+ on_hand+ played+ play_options+ add_states])
 
 	def getBinaryStateFirstCard(self, playeridx, action):
 		hand   = self.players[playeridx].getBinaryHand(self.players[playeridx].hand)
@@ -589,6 +609,39 @@ class game(object):
 			# trick value is not 100% the local value as 11 red etc. have future effects!
 			return self.rewards, round_finished
 
+	def step_idx_old(self, card_idx):
+	  """
+	  card_idx = hand card!
+	  """
+	  # in case card_idx is a simple int value
+	  round_finished = False
+	  # play the card_idx:
+	  played_card = self.players[self.active_player].hand.pop(card_idx)
+	  self.on_table_cards.append(played_card)
+	  self.played_cards.append(played_card)
+	  # Case round finished:
+	  trick_rewards = [0, 0, 0, 0]
+	  if len(self.on_table_cards) == self.nu_players:
+	    winning_card, on_table_win_idx, player_win_idx = self.evaluateWinner()
+	    trick_rewards[player_win_idx] = self.players[player_win_idx].countResult([self.on_table_cards])
+	    self.current_round +=1
+	    self.players[player_win_idx].appendCards(self.on_table_cards)
+	    self.on_table_cards = []
+	    self.active_player  = player_win_idx
+	    round_finished = True
+	  else:
+	    self.active_player = self.getNextPlayer()
+
+	  finished = self.isGameFinished()
+	  if finished is not None:
+	    self.assignRewards()
+	    self.total_rewards += self.rewards
+	    # CAUTION CHANGED: before:return self.rewards, True
+	    return trick_rewards, True
+	  else:
+	    # trick value is not 100% the local value as 11 red etc. have future effects!
+	    return trick_rewards, round_finished
+
 	def shiftCard(self, card_idx, current_player, next_player):
 		# shift round = 0, 1, ... (for 2 shifted cards)
 		#print("I shift now hand idx", card_idx, "from", self.players[current_player].name, "to", self.players[next_player].name)
@@ -636,11 +689,32 @@ class game(object):
 			#print(i, player.offhand)
 			self.rewards[i] = player.countResult(player.offhand)
 
+	def getAdditionalState(self, playeridx):
+		result = []
+		player = self.players[playeridx]
+		for i in ["B","G","R","Y"]:
+			for j in range(11,15):
+				if player.hasSpecificCard(j, i):
+					result.append(1.0)
+				else:
+					result.append(0.0)
+
+		#extend if this player would win the current cards
+		player_win_idx = playeridx
+		if len(self.on_table_cards)>0:
+			winning_card, on_table_win_idx, player_win_idx = self.evaluateWinner()
+		if player_win_idx == playeridx:
+			result.extend([1.0])
+		else:
+			result.extend([0.0])
+		result.extend(player.colorFree) # 4 per player
+		return result
+
+
 	def getmyState(self, playeridx):
 		on_table =[0.00]*60
 		on_hand  =[0.00]*60
 		played   =[0.00]*60
-		zeros    =[0.00]*60
 		for card in self.on_table_cards:
 			on_table[self.getCardIndex(card)]    = 1.00
 

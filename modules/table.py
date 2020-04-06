@@ -276,12 +276,17 @@ class cardTableWidget(QWidget):
         # used in test_onnx
         return tensor.detach().cpu().numpy()
 
-    def rl_onnx(self, x, path):
+    def rl_onnx(self, state_240, state_303, path):
         '''Input:
         x:      180x1 list binary values
         path    *.onnx (with correct model)'''
         ort_session = onnxruntime.InferenceSession(path)
-        ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(x, dtype=np.float32)}
+        if ort_session.get_inputs()[0].shape[0] == 240:
+            ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(state_240, dtype=np.float32)}
+        elif ort_session.get_inputs()[0].shape[0]==303:
+            ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(state_303, dtype=np.float32)}
+        else:
+            print("Error wrong inputs!")
         ort_outs    = ort_session.run(None, ort_inputs)
         max_value = (np.amax(ort_outs))
         result = np.where(ort_outs == np.amax(ort_outs))
@@ -310,12 +315,14 @@ class cardTableWidget(QWidget):
         # Version 2.0 shifting active do not use nn, mcts anymore!
         current_player = self.my_game.active_player
         if "RL"  in self.my_game.ai_player[current_player]:
-            line = self.my_game.getState()
+            state_240 = self.my_game.getState_240().flatten()
+            state_303 = self.my_game.getState_303().flatten() # used in rl_path11_op
             try:
                 rl_type = int(''.join(x for x in self.my_game.ai_player[current_player] if x.isdigit()))
             except:
+                print("Error did not find rl_type set it to 1")
                 rl_type = 1
-            action = self.rl_onnx(line.flatten(), "data/"+self.options["onnx_rl_path"][rl_type]+".onnx")
+            action = self.rl_onnx(state_240, state_303, "data/"+self.options["onnx_rl_path"][rl_type]+".onnx")
             card   = self.my_game.players[current_player].getIndexOfCard(action)
             action = self.my_game.players[current_player].specificIndexHand(card)
             is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)

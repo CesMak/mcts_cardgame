@@ -73,7 +73,6 @@ class player(object):
 		self.offhand      = [] # contains won cards of each round (for 4 players 4 cards!)
 		self.total_result = 0  # the total result as noted down in a book!
 		self.take_hand    = [] # cards in first phase cards to take!
-		self.colorFree    = [0.0, 0.0, 0.0, 0.0] # 1.0 means other know that your are free of this color B G R Y
 		#self.player_style = style # 0: play random card, 1: play card with lowest value, 2: ai player
 
 	def sayHello(self):
@@ -103,14 +102,6 @@ class player(object):
 	def getHandCardsSorted(self):
 		return sorted(self.hand, key = lambda x: ( x.color,  x.value))
 
-	def convertAllCardState(self, state60_in):
-		#in comes a state matrix with len = 60 with 0...1..0...1
-		indices = [i for i, x in enumerate(state60_in) if int(x) == 1]
-		result  = []
-		for j in indices:
-			result.append(self.getIndexOfCard(j))
-		return result
-
 	def getRandomOption(self, incolor):
 		options_list = [0]*60
 		options      = self.getOptions(incolor)
@@ -118,6 +109,14 @@ class player(object):
 		[_, card]    = options[rand_card]
 		options_list[self.getCardIndex(card)] = 1
 		return options_list
+
+	def convertAllCardState(self, state60_in):
+		#in comes a state matrix with len = 60 with 0...1..0...1
+		indices = [i for i, x in enumerate(state60_in) if int(x) == 1]
+		result  = []
+		for j in indices:
+			result.append(self.getIndexOfCard(j))
+		return result
 
 	def getBinaryOptions(self, incolor, shifting_phase=False):
 		#returns 0....1... 60x1 array BGRY 0...15 sorted
@@ -190,16 +189,6 @@ class player(object):
 			result_idx = 15*3+card.value-1
 		return result_idx
 
-	def setColorFree(self, color):
-		if color =="B":
-			self.colorFree[0] = 1.0
-		elif color =="G":
-			self.colorFree[1] = 1.0
-		elif color == "R":
-			self.colorFree[2] = 1.0
-		elif color =="Y":
-			self.colorFree[3]  = 1.0
-
 	def getOptions(self, incolor, orderOptions=0):
 		# incolor = None -> Narr was played played before
 		# incolor = None -> You can start!
@@ -224,8 +213,6 @@ class player(object):
 			options = [] # necessary otherwise joker double!
 			for i, card in enumerate(self.hand):
 				options.append([i, card])
-			if not self.hasJoker() and incolor is not None:
-				self.setColorFree(incolor)
 		if orderOptions: return sorted(options, key = lambda x: ( x[1].color,  x[1].value))
 		return options
 
@@ -239,12 +226,6 @@ class player(object):
 				minimum_value=card.value
 				index        = i
 		return index
-
-	def hasJoker(self):
-		for i in ["Y", "R", "G", "B"]:
-			if self.hasSpecificCard(14, i):
-				return True
-		return False
 
 	def hasYellowEleven(self):
 		return self.hasSpecificCard(11, "Y")
@@ -312,7 +293,7 @@ class game(object):
 		self.nu_games_played   = 0
 		self.players           = []  # stores players object
 		self.on_table_cards    = []  # stores card on the table
-		self.active_player     = 0  # due to gym reset =3 stores which player is active (has to give a card)
+		self.active_player     =  3  # due to gym reset =3 stores which player is active (has to give a card)
 		self.played_cards      = []  # of one game # see also in players offhand!
 		self.gameOver          = 0
 		self.neuralNetworkInputs = {}
@@ -324,8 +305,7 @@ class game(object):
 		self.shifted_cards     = 0 # counts
 		self.nu_shift_cards    = 2 # shift 2 cards!
 		self.shifting_phase    = True
-		self.shift_round       = 0
-		self.shift_option      = 0 # due to gym reset=2 ["left", "right", "opposide"]
+		self.shift_option      = 2 # due to gym reset=2 ["left", "right", "opposide"]
 
 		#MCTS ai player adjustements:
 		self.expo_constant     = options_dict["expo"]
@@ -353,15 +333,12 @@ class game(object):
 		myDeck = deck()
 		myDeck.shuffle()
 		self.nu_games_played +=1
+		self.shifted_cards  = 0
 
 		if self.shift_option <2:
 			self.shift_option += 1
 		else:
 			self.shift_option  = 0
-		self.shifted_cards     = 0 # counts
-		self.nu_shift_cards    = 2 # shift 2 cards!
-		self.shift_round       = 0
-
 		self.shifting_phase    = True
 		self.players           = []  # stores players object
 		self.on_table_cards    = []  # stores card on the table
@@ -481,21 +458,15 @@ class game(object):
 		# availAcs[np.nonzero(availAcs==1)] = 0
 		return np.asarray(availAcs)
 
-	def getState_240(self):
+	def getState(self):
 		#    return self.playersGo, self.neuralNetworkInputs[self.playersGo].reshape(1,412), convertAvailableActions(self.returnAvailableActions()).reshape(1,1695)
 		# return active_player, neuronNetworkInputs of active player and available actions of active player
 		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor(), self.shifting_phase)
 		on_table, on_hand, played = self.getmyState(self.active_player)
+		# if self.shifting_phase:
+		# 	for i in range(len(on_table)):
+		# 		on_table[i]    = 1.00
 		return np.asarray([on_table, on_hand, played, play_options])
-
-	def getState_303(self):
-		play_options = self.players[self.active_player].getBinaryOptions(self.getInColor(), self.shifting_phase)
-		on_table, on_hand, played = self.getmyState(self.active_player)
-		add_states = [] #48= with has cards,+12=60 for does not have card anymore...
-		for i in range(len(self.players)):
-			if i!=self.active_player:
-				add_states.extend(self.getAdditionalState(i))
-		return np.asarray([on_table+ on_hand+ played+ play_options+ add_states])
 
 	def getBinaryStateFirstCard(self, playeridx, action):
 		hand   = self.players[playeridx].getBinaryHand(self.players[playeridx].hand)
@@ -565,7 +536,7 @@ class game(object):
 		#Note that card_idx is a Hand Card IDX!
 		self.shifting_phase = (self.shifted_cards<=self.nu_players*self.nu_shift_cards)
 		if self.shifting_phase:
-			self.shift_round   = int(self.shifted_cards/self.nu_players)
+			shift_round   = int(self.shifted_cards/self.nu_players)
 			self.shiftCard(card_idx, self.active_player, self.getShiftPlayer())
 			self.shifted_cards +=1
 
@@ -573,7 +544,7 @@ class game(object):
 			if self.shifted_cards%self.nu_players == 0:
 				round_finished = True
 			#print("Shift Round:", shift_round, "Shifted Cards:", self.shifted_cards, "round_finished", round_finished)
-			if self.shift_round == (self.nu_shift_cards)-1 and round_finished:
+			if shift_round == (self.nu_shift_cards)-1 and round_finished:
 				#print("\nShifting PHASE FINISHED!!!!!!\n")
 				for player in self.players:
 					#print(player.name, player.take_hand)
@@ -609,14 +580,14 @@ class game(object):
 			self.active_player = self.getNextPlayer()
 
 		finished = self.isGameFinished()
+		self.assignRewards()
 		if finished is not None:
-			self.assignRewards()
 			self.total_rewards += self.rewards
 			# CAUTION CHANGED: before:return self.rewards, True
-			return trick_rewards, True
+			return self.rewards, True
 		else:
 			# trick value is not 100% the local value as 11 red etc. have future effects!
-			return trick_rewards, round_finished
+			return self.rewards, round_finished
 
 	def shiftCard(self, card_idx, current_player, next_player):
 		# shift round = 0, 1, ... (for 2 shifted cards)
@@ -664,27 +635,6 @@ class game(object):
 		for i, player in enumerate(self.players):
 			#print(i, player.offhand)
 			self.rewards[i] = player.countResult(player.offhand)
-
-	def getAdditionalState(self, playeridx):
-		result = []
-		player = self.players[playeridx]
-		for i in ["B","G","R","Y"]:
-			for j in range(11,15):
-				if player.hasSpecificCard(j, i):
-					result.append(1.0)
-				else:
-					result.append(0.0)
-
-		#extend if this player would win the current cards
-		player_win_idx = playeridx
-		if len(self.on_table_cards)>0:
-			winning_card, on_table_win_idx, player_win_idx = self.evaluateWinner()
-		if player_win_idx == playeridx:
-			result.extend([1.0])
-		else:
-			result.extend([0.0])
-		result.extend(player.colorFree) # 4 per player
-		return result
 
 	def getmyState(self, playeridx):
 		on_table =[0.00]*60

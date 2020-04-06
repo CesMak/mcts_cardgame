@@ -1,4 +1,3 @@
-README.md
 setup.py
 gym_witches.egg-info/PKG-INFO
 gym_witches.egg-info/SOURCES.txt
