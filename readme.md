@@ -139,9 +139,15 @@ at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewar
   **new player is rl0**
   ![95_percent_winner_mc_rewarding-img](data/imgs/95_percent_rl0.png)
   + See commit **95_precent_mc_rewarding_winner**
-  + Play 10 rounds against this player as a human!
+    + Play 10 rounds against this player as a human!
+    + Shifted cards are not always best options!
+    + Play against pretrained copys (see path 12 was has not better stats....)
+    + Train pretrained copys further.....  
+    + -1101  -890  in 200 games
+    + -969   -935 in again 200 games
+    + Test monte carlo options!!! as add input to Network output?!
   + Note that current rewarding aims to find yellow 11 as fast as possible!
-  + Next play against pretrained copys
+
 
 * how to reward?
 * works also with and without step?

@@ -8,6 +8,9 @@ import numpy as np
 
 from gym.utils import seeding
 
+from ppo_witches import PPO
+import torch
+
 class WitchesEnv(gym.Env):
     metadata = {'render.modes': ['human']}
     def __init__(self):
@@ -19,13 +22,18 @@ class WitchesEnv(gym.Env):
         self.options = {}
         self.number_of_won = [0, 0, 0, 0]
         self.saved_results = np.zeros(4,)
-        self.options_file_path =  "gym-witches/gym_witches/envs/reinforce_options.json"
+        self.options_file_path =  "../data/reinforce_options.json"
         with open(self.options_file_path) as json_file:
             self.options = json.load(json_file)
         self.reinfo_index = self.options["type"].index("REINFO")
         self.my_game      = game(self.options)
         self.correct_moves = 0
         self.use_shifting  = True
+
+        self.ppo_test = PPO(303, 60, 128, 25*1e-8, (0.9, 0.999), 0.999, 5, 0.01)
+        # trained_pre33_    test_-2.8
+        path = "ppo_models/PPO_Witches-v0_-11.51600000000002_80.0.pth"
+        self.ppo_test.policy_old.load_state_dict(torch.load(path))
 
     def step_old(self, action):
         assert self.action_space.contains(action)
@@ -57,6 +65,10 @@ class WitchesEnv(gym.Env):
 
     def render(self, mode='human', close=False):
         ...
+
+    def getPathAction(self, x):
+        return self.ppo_test.policy_old.act(x.flatten(), None)
+
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -151,10 +163,12 @@ class WitchesEnv(gym.Env):
             self.my_game.total_rewards[self.reinfo_index] -=100
             return state.flatten().astype(np.int), float(reward), True, np.zeros(4,), 0.0
         else:
+            #Dieser spieler lernt möglist früh die gelbe 11 zu fassen!
             rewards, done = self.playUnitlAI()
             state         = self.my_game.getState()
             self.updateTotalResult()
             self.correct_moves +=1
+            #rewarde nun mit unterschied zu vorher!
             return state.flatten().astype(np.int), float(reward)+21, done, self.number_of_won, self.correct_moves
 
     def play_ai_move(self, ai_action):
@@ -208,8 +222,18 @@ class WitchesEnv(gym.Env):
                 #     print("[{}] {} {}\t{}\tCard {}\tHand Index {}\t len {}".format(self.my_game.current_round, current_player, self.my_game.names_player[current_player], self.my_game.ai_player[current_player], card, action, len(self.my_game.players[current_player].hand)))
                 rewards, round_finished = self.my_game.step_idx_with_shift(action)
             elif "TRAINED" in self.my_game.ai_player[current_player]:
-                action = self.selectAction(0)
-                rewards, round_finished = self.my_game.step_idx(action)
+                state = self.my_game.getState()
+                action = self.getPathAction(state)
+                card   = self.my_game.players[current_player].getIndexOfCard(action)
+                tmp    = self.my_game.players[current_player].specificIndexHand(card)
+                valid_options_idx = self.my_game.getValidOptions(current_player)
+                player_has_card = self.my_game.players[current_player].hasSpecificCardOnHand(card)
+                if player_has_card and tmp in valid_options_idx:
+                    action = tmp
+                else:
+                    #print("Wrong MOVE!")
+                    action = self.my_game.getRandomOption_()
+                rewards, round_finished = self.my_game.step_idx_with_shift(action)
             else:
                 return rewards, game_over
         # Game is over!
