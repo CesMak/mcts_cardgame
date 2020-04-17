@@ -18,9 +18,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Below code is from:
 # https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py
 
-
-
-
 class Memory:
     def __init__(self):
         self.actions = []
@@ -335,7 +332,7 @@ def learn(ppo, update_timestep, eps_decay):
     total_number_of_games_played = 0
     invalid_moves   = 0
     log_interval    = update_timestep           # print avg reward in the interval
-    max_reward      = -15
+    max_reward      = -340
     total_correct_moves=0
     correct_moves = 0
 
@@ -410,7 +407,7 @@ if __name__ == '__main__':
     action_dim = env.action_space.n
 
     nu_latent       = 128
-    gamma           = 0.99
+    gamma           = 0.999
     K               = 5
     update_timestep = 2000
 

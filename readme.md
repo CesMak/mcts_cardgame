@@ -33,7 +33,7 @@ See file **gui_options.json**
   "save_game_play": false,                   " [true, false]  true: save a pickle game_play"
   "game_play_path": "data/game_play.pkl",    " *.pkl          path for pickle game_play"
   "onnx_path": "data/model_long_training.pth.onnx"  "[model_long_training.pth.onnx, model.pth.onnx, actions_all.pth.onnx]"
-  "onnx_rl_path": ["rl_path3", "rl_path4", "rl_path5", "rl_path6"]   " in data/*.onnx [rl_path3, rl_path4, rl_path5, rl_path6] path PPO trained"
+  "onnx_rl_path": ["rl_path3", "rl_path4", "rl_path5", "rl_path6"]   " in data/*.onnx [rl_path3, rl_path4, rl_path5, rl_path6, ... rl_path12_further] path PPO trained"
 }
 ```
 
@@ -133,12 +133,12 @@ at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewar
 + include shifting? and see what is changing
   + rewarding with total current rewards seems also to work (changed gameClasses with newest one)
   + So far it seems to work however, correct moves and invalid moves has different meaning inv_moves = 0.0455 correct moves = 16.23
-  + Including some additional states has helped!
+  + **Including some additional states has helped!**
   + Found a new best player **rl_path11_op** win rate of 95% against random player! With shifting:
   ![95_percent_winner_mc_rewarding-img](data/imgs/95_percent_winner_mc_rewarding.png)
   **new player is rl0**
   ![95_percent_winner_mc_rewarding-img](data/imgs/95_percent_rl0.png)
-  + See commit **95_precent_mc_rewarding_winner**
+  + See commit **95_precent_mc_rewarding_winner** or nicer version **shift_trained_further**
     + Play 10 rounds against this player as a human!
     + Shifted cards are not always best options!
     + Play against pretrained copys (see path 12 was has not better stats....)
@@ -147,6 +147,14 @@ at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewar
     + -969   -935 in again 200 games
     + Test monte carlo options!!! as add input to Network output?!
   + Note that current rewarding aims to find yellow 11 as fast as possible!
+
+**17.04.2020 Learning multi Train against each other**
+* learn against trained players endures for 15h, shift works better see rl_path14_multi
+* still worse than me (human) and worse than:    "rl_path12_further"
+* see commit  **included_multi**
+* **Added iig folder**
+* adjustable card number
+* see commit **included_multi**
 
 
 * how to reward?
@@ -163,7 +171,7 @@ at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewar
 ### PPO with gae
 See the file **ppo2_witches.py**
 
-### PPO with LSTM
+### PPO with LSTM and gae
 See the file **ppo3_witches.py**
 
 ### Test Baselines
