@@ -37,6 +37,15 @@ See file **gui_options.json**
 }
 ```
 
+# Playing online
+Use this configuration:
+|Option|Server|Client|
+|--|--|--|
+|online_type|Server|Client|
+|open_ip|any|172.168.11.5 (e.g.)|
+|names|['Max', ...] updated|['Hans'] <- unique name|
+|type|['Server', 'Client', ...]|['Client']|
+
 # Player Types
   * RANDOM: plays a random possible card
   * HUMAN : you can choose to play (use double click)
@@ -155,7 +164,7 @@ at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewar
 * **Added iig folder**
 * adjustable card number
 * see commit **included_multi**
-
+* Not to see also the [collab](https://drive.google.com/drive/folders/1ru_TDEmMKXjiv4ie3Zl4nYPsHngkZExr) version (is not faster however, and trains only when active at pc max. 12h)
 
 * how to reward?
 * works also with and without step?
