@@ -4,6 +4,7 @@ To play a card as HUMAN **double click** the card.
 
 # Windows
 Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
+MultiPlayer Version [witches_ai_0.1.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
 
 # Linux
 Commited Versions:
