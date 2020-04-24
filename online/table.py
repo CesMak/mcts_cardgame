@@ -933,12 +933,15 @@ class cardTableWidget(QWidget):
             itemAt = self.view.itemAt(p)
             if isinstance(itemAt, CardGraphicsItem):
                 self.cardPressed(itemAt)
+        except ValueError:
+            print("This is not your card!!!")
         except Exception as e:
             print(e)
 
     def cardPressed(self, card):
         if "Client" in self.options["online_type"]:
-            print("I client want to play now:", card)
+            # let the folowing line to get exception!
+            self.clientCards.index(card.card)
             self.send_msgClient(self.options["names"][self.clientId]+";WantPlay;"+str(card.card))
         else:
             if "Client" in self.my_game.ai_player[self.my_game.active_player]:
