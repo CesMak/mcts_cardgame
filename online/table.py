@@ -426,6 +426,7 @@ class cardTableWidget(QWidget):
 
         if "WantPlay" in command:
             card = self.convertCardString2Card(message)
+            print("Active Player is:", self.my_game.active_player)
             action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
             if action == -1:
                 self.send_msgServer(conn["idx"], "WantPlayNOK;"+str(card)+" does not belong to active player!")
@@ -441,6 +442,7 @@ class cardTableWidget(QWidget):
             self.send_msgServer(-1, "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)))
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
+            print("Active Player after is:", self.my_game.active_player)
         elif "ClientPlayed" in command:
             rewards, round_finished = self.playVirtualCard(int(message))
             if len(self.my_game.players[self.my_game.active_player].hand)==0:
@@ -802,11 +804,11 @@ class cardTableWidget(QWidget):
             self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1)+" Round: "+str(self.my_game.current_round+1))
 
     def playCardClient(self, graphic_card_item, current_player, label_idx, player_name, shifting, shifted_cards):
-        if graphic_card_item.player == current_player:
+        #if graphic_card_item.player == current_player:
             self.setNames()
             if shifting:
-                card_label        =  self.card_label_l[current_player]
-                self.changePlayerName(card_label, player_name, highlight=0)
+                card_label        =  self.card_label_l[graphic_card_item.player]
+                self.changePlayerName(card_label, self.options["names"][graphic_card_item.player], highlight=0)
                 self.view.viewport().repaint()
                 shift_round = int(shifted_cards/4)
                 graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20+shift_round*50)
@@ -819,9 +821,9 @@ class cardTableWidget(QWidget):
             self.midCards.append(graphic_card_item)
             self.view.viewport().repaint()
             return 1 # card played!
-        else:
-            print("ERROR I cannot play card", graphic_card_item, "it belongs player", graphic_card_item.player, "current player is", current_player)
-            return 0
+        # else:
+        #     print("ERROR I cannot play card", graphic_card_item, "it belongs player", graphic_card_item.player, "current player is", current_player)
+        #     return 0
 
     def playCard(self, graphic_card_item, current_player, label_idx, player_name):
         try:
