@@ -673,6 +673,7 @@ class game(object):
         #yes this is the correct ai reward in case all players are ai players.
         if self.isGameFinished():
             self.assignRewards()
+            self.total_rewards += self.rewards
         return {"state": "play", "ai_reward": trick_rewards[player_win_idx], "on_table_win_idx": on_table_win_idx, "trick_rewards": trick_rewards, "player_win_idx": player_win_idx, "total_rewards": self.rewards}, round_finished, self.isGameFinished()
 
     def step_idx_old(self, card_idx):

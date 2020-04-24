@@ -10,10 +10,6 @@ import easygui
 import json
 from prettyjson import prettyjson
 
-#For NN:
-# (Optional for testing)
-# from train import test_trained_model
-
 # Building an exe use onnx
 import onnxruntime
 import numpy as np
@@ -28,8 +24,11 @@ from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QLineEdit, QLabe
 from PyQt5.QtNetwork import QTcpSocket, QAbstractSocket, QTcpServer, QHostAddress
 import re
 import ast
-
 from gameClasses import card, deck, player, game
+
+import urllib.request
+
+
 
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
@@ -137,15 +136,18 @@ class cardTableWidget(QWidget):
         playbtn.move(10, 10)
         playbtn.clicked.connect(self.start_clicked)
 
-        nextRound = QPushButton('nextRound', self)
-        nextRound.resize(80, 32)
-        nextRound.move(65, 10)
-        nextRound.clicked.connect(self.nextRound_clicked)
-
         options = QPushButton('Options', self)
         options.resize(80, 32)
-        options.move(150, 10)
+        options.move(65, 10)
         options.clicked.connect(self.options_clicked)
+
+        nextRound = QPushButton('nextRound', self)
+        nextRound.resize(80, 32)
+        nextRound.move(150, 10)
+        nextRound.setVisible(False)
+        nextRound.clicked.connect(self.nextRound_clicked)
+
+
 
         self.scene.addWidget(playbtn)
         self.scene.addWidget(nextRound)
@@ -283,6 +285,9 @@ class cardTableWidget(QWidget):
         elif "ShowResult" in command:
             player, reward, total_reward, offhandCards  = int(message.split("--")[0]), message.split("--")[1], message.split("--")[2], self.convertCardsArray(message.split("--")[3])
             self.showResultClient(player, reward, total_reward, offhandCards)
+        elif "BackHand" in command:
+            print("BACK HAND:", message)
+            self.deckBackSVG = message
         else:
             print("Sry I(Client) did not understand this command", command)
             return
@@ -580,6 +585,10 @@ class cardTableWidget(QWidget):
         # remove all cards which were there from last game.
         self.removeAll()
         if "Server" in self.options["online_type"] and self.my_game.nu_games_played<1:
+            # get open ip:
+            page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
+            print("THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
+
             # send cards to clients, wait for all clients
             # wait until all players are connected!
             print("Wait for all players to be connected!", self.server_state, self.clientConnections)
@@ -596,6 +605,7 @@ class cardTableWidget(QWidget):
             _, tmp = self.getNuClients()
             for i, conn in enumerate(self.clientConnections):
                 self.options["names"][tmp[i]] = conn["name"]
+            self.send_msgServer(-1, "BackHand;"+self.deckBackSVG)
 
         #3. Deal Cards:
         for i in range(len(self.my_game.players)):
