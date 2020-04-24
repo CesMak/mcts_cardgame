@@ -293,7 +293,7 @@ class cardTableWidget(QWidget):
             return
 
     def send_msgClient(self, msg):
-        self.tcpSocket.waitForConnected(1000)
+        self.tcpSocket.waitForBytesWritten(1000) # waitForBytesWritten  waitForConnected
         # TODO send with name in options[names][0]
         self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
 

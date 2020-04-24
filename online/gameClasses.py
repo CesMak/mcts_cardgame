@@ -331,10 +331,6 @@ class game(object):
             play.hand = play.getHandCardsSorted()
             self.players.append(play)
 
-        # print("Show HANDDD")
-        # for p in self.players:
-        #     p.showHand()
-
     def reset_game(self):
         #not used yet.
         myDeck = deck()
