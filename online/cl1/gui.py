@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui  import *
 import random
+sys.path.append("..")
 from table import cardTableWidget
 
 #Links

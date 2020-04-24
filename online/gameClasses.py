@@ -671,7 +671,9 @@ class game(object):
             self.active_player = self.getNextPlayer()
 
         #yes this is the correct ai reward in case all players are ai players.
-        return {"state": "play", "ai_reward": trick_rewards[player_win_idx], "on_table_win_idx": on_table_win_idx, "trick_rewards": trick_rewards, "player_win_idx": player_win_idx}, round_finished, self.isGameFinished()
+        if self.isGameFinished():
+            self.assignRewards()
+        return {"state": "play", "ai_reward": trick_rewards[player_win_idx], "on_table_win_idx": on_table_win_idx, "trick_rewards": trick_rewards, "player_win_idx": player_win_idx, "total_rewards": self.rewards}, round_finished, self.isGameFinished()
 
     def step_idx_old(self, card_idx):
       """
