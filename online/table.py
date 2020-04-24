@@ -406,9 +406,10 @@ class cardTableWidget(QWidget):
         return -1
 
     def parseServerMessage(self, conn, msg):
+        if len(msg) == 0: return
+        print(">>>>Server receives", msg)
         try:
             tmp = msg.split(";")
-            print(tmp)
             client_name, command, message = tmp[0], tmp[1], tmp[2]
             if not "name" in conn and "InitClient" in command:
                 conn["name"] = client_name
@@ -438,18 +439,23 @@ class cardTableWidget(QWidget):
             if action not in is_allowed_list_idx and incolor is not None:
                 self.send_msgServer(conn["idx"], "WantPlayNOK;"+"I cannot play"+str(card)+" not allowed!")
                 return
-            # send all that card is played!
-            self.send_msgServer(-1, "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)))
+            # send client requester back that he can play this card.
+            self.send_msgServer(conn["idx"], "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)))
+            #send to all other clients that this card was put
+            self.send_msgServer(conn["idx"], "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), other=True)
+
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
             print("Active Player after is:", self.my_game.active_player)
         elif "ClientPlayed" in command:
+            print("Client Played card play now virtual card etc.")
             rewards, round_finished = self.playVirtualCard(int(message))
             if len(self.my_game.players[self.my_game.active_player].hand)==0:
                 self.checkFinished()
                 self.showResult(rewards)
                 return
             self.checkFinished()
+            print("Active Player after is:", self.my_game.active_player)
             if "Server" in self.options["online_type"]:
                 self.playUntilClient()
             else:
@@ -475,8 +481,8 @@ class cardTableWidget(QWidget):
                 return conn
         return None
 
-    def send_msgServer(self, idx, msg):
-        'idx: connection idx player index'
+    def send_msgServer(self, idx, msg, other=False):
+        'idx: connection idx player index, idx=-1 send to all conections, if other=True send to all other but to idx'
         to =""
         if idx==-1:
             to = "all"
@@ -491,17 +497,22 @@ class cardTableWidget(QWidget):
         # We are using PyQt5 so set the QDataStream version accordingly.
         out.setVersion(QDataStream.Qt_5_0)
         out.writeUInt16(0)
-        print(">>>>>Server sends:", msg)
+        print(">>>>>Server sends:", msg, "other:", other)
 
         out.writeString(bytes(msg, encoding='ascii'))
         out.device().seek(0)
         out.writeUInt16(block.size() - 2)
-        if to=="all":
+        if to=="all" or other:
             for connections in self.clientConnections:
                 #actually should wait for emit signal!!!
                 # see here: https://doc.qt.io/archives/4.6/qabstractsocket.html#waitForReadyRead
-                connections["conn"].waitForReadyRead(100)
-                connections["conn"].write(block)
+                if other:
+                    if not (connections["idx"] == idx):
+                        connections["conn"].waitForReadyRead(100)
+                        connections["conn"].write(block)
+                else:
+                    connections["conn"].waitForReadyRead(100)
+                    connections["conn"].write(block)
         else:
             co = conn["conn"]
             co.waitForReadyRead(100)
@@ -773,6 +784,7 @@ class cardTableWidget(QWidget):
         return rewards, round_finished
 
     def playUntilClient(self):
+        print("playUnitlClient:", self.my_game.ai_player[self.my_game.active_player])
         while (not "Client" in self.my_game.ai_player[self.my_game.active_player]) and (not "Server" in self.my_game.ai_player[self.my_game.active_player]):
             action = self.selectAction()
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
@@ -971,8 +983,6 @@ class cardTableWidget(QWidget):
                     self.showResult(rewards)
                     return
                 self.checkFinished()
-                #print("Active Player", self.my_game.active_player)
-                #print("Human Card Played: ", card)
                 if "Server" in self.options["online_type"]:
                     self.playUntilClient()
                 else:
