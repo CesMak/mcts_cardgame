@@ -168,14 +168,13 @@ class cardTableWidget(QWidget):
         self.timer            = QTimer(self)
 
         ### Client stuff:
+        self.clientTimer      = QTimer(self)
         self.tcpSocket        = None
         self.clientCards      = None
         self.clientNames      = None
         self.clientType       = None
         self.clientId         = -1
 
-        #TODO delete:
-        self.start_clicked()
 
     def options_clicked(self):
         '''
@@ -224,7 +223,6 @@ class cardTableWidget(QWidget):
             return
 
         if "InitMyCards" in command:
-            print("CLIENT IDDDD:", self.clientId)
             self.clientCards = self.convertCardsArray(message)
             self.deal_cards(self.clientCards, self.clientId, fdown=False)
         elif "InitOtherCards" in command:
@@ -232,13 +230,10 @@ class cardTableWidget(QWidget):
             self.deal_cards(self.convertCardsArray(cardsStr), int(player), fdown=True)
         elif "Names" in command:
             self.clientNames =ast.literal_eval(message)
-            print("Heyho", self.clientNames, self.options["names"])
             for i,j in enumerate(self.clientNames):
-                print(i,j)
                 if self.options["names"][0] == j:
                     self.clientId =i
                     break
-            print("client iddddddddddddddddddd:", self.clientId)
             self.options["names"] = self.clientNames
             #update board with client names
         elif "Type" in command:
@@ -271,20 +266,17 @@ class cardTableWidget(QWidget):
             cardsStr, player = message.split("--")[0], message.split("--")[1]
             self.deal_cards(self.convertCardsArray(cardsStr), int(player), fdown=True)
         elif "PutCard" in command:
-            print("another player played or shifted a card")
             player_name, card = message.split(",")[0].replace(" ",""), self.convertCardString2Card(message.split(",")[1])
             shifting, nu_shift_cards, action, player, on_table_cards = bool(message.split(",")[2]), int(message.split(",")[3]), message.split(",")[4], message.split(",")[5], int(message.split(",")[6])
             if "False" in message.split(",")[2]:
                 shifting = False
             item = self.findGraphicsCardItem_(card)
-            print("LEN mid cards:", len(self.midCards))
             if shifting:
                 card_played = self.playCardClient(item, int(player), on_table_cards, self.options["names"][int(player)], bool(shifting), nu_shift_cards)
             else:
                 card_played = self.playCardClient(item, int(player), len(self.midCards), self.options["names"][int(player)], bool(shifting), nu_shift_cards)
         elif "DeleteMid" in command:
             self.removeMidNames()
-            print("Mid Cardds", self.midCards)
             for i in self.midCards:
                 self.removeCard(i)
             self.midCards = []
@@ -296,7 +288,6 @@ class cardTableWidget(QWidget):
             return
 
     def send_msgClient(self, msg):
-        print("inside send_msg")
         self.tcpSocket.waitForConnected(1000)
         # TODO send with name in options[names][0]
         self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
@@ -306,20 +297,27 @@ class cardTableWidget(QWidget):
         if socketError == QAbstractSocket.RemoteHostClosedError:
             pass
         else:
-            print(self, "The following error occurred: %s." % self.tcpSocket.errorString())
+            print("Server does not seem to be open or wrong open_ip!")
+            if not self.clientTimer.isActive():
+                print("The following error occurred: %s." % self.tcpSocket.errorString())
+                self.clientTimer.timeout.connect(self.clientReconnectTimer)
+                self.clientTimer.start(5000)
+
 
     def openClient(self, ip):
         self.tcpSocket = QTcpSocket(self)
-        ## to do change this in the end!
-        ip, _ = self.getIP()
-        print(ip)
+        print("I client connect now with:", ip)
         self.tcpSocket.connectToHost(ip, 8000, QIODevice.ReadWrite)
         self.tcpSocket.readyRead.connect(self.dealCommunication)
         self.tcpSocket.error.connect(self.displayErrorClient)
 
         # send start message:
-        self.tcpSocket.waitForConnected(1000)
-        self.tcpSocket.write(bytes( self.options["names"][0]+";"+"InitClient;Server please init me with my name", encoding='ascii'))
+        connected = self.tcpSocket.waitForConnected(1000)
+        if connected:
+            self.clientTimer.stop()
+            self.tcpSocket.write(bytes( self.options["names"][0]+";"+"InitClient;Server please init me with my name", encoding='ascii'))
+        else:
+            print("Not connected, Server not open?, open_ip wrong? Try to reconnect in 5sec")
 
     def dealCommunication(self):
         instr = QDataStream(self.tcpSocket)
@@ -383,7 +381,6 @@ class cardTableWidget(QWidget):
 #########################SERVER #################################
 #########################SERVER #################################
     def serverInputCommunication(self):
-        print("serverInputCommunication")
         self.clientConnections.append({"conn":self.tcpServer.nextPendingConnection(), "idx": len(self.clientConnections)})
         self.clientConnections[len(self.clientConnections)-1]["conn"].readyRead.connect(self.receivedMessagesServer)
 
@@ -423,11 +420,7 @@ class cardTableWidget(QWidget):
             return
 
         if "WantPlay" in command:
-            print("I Server check if possible!")
             card = self.convertCardString2Card(message)
-            print("Card:", card)
-            print("Active Player", self.my_game.active_player)
-            print("Hand of this player:", self.my_game.players[self.my_game.active_player].hand)
             action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
             if action == -1:
                 self.send_msgServer(conn["idx"], "WantPlayNOK;"+str(card)+" does not belong to active player!")
@@ -445,8 +438,6 @@ class cardTableWidget(QWidget):
             card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
         elif "ClientPlayed" in command:
             rewards, round_finished = self.playVirtualCard(int(message))
-            print("Rewards::::", rewards)
-            print("Roundddfinshed:::", round_finished)
             if len(self.my_game.players[self.my_game.active_player].hand)==0:
                 self.checkFinished()
                 self.showResult(rewards)
@@ -558,7 +549,6 @@ class cardTableWidget(QWidget):
                     return
                 self.openClient(self.options["open_ip"])
                 QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-                print("Is the socket deleted here???", self.tcpSocket)
             else:
                 self.my_game     = game(self.options)
                 self.runGame()
@@ -582,10 +572,13 @@ class cardTableWidget(QWidget):
         print("Wait for all players to be connected!", self.server_state, self.clientConnections)
         self.timeouttt = False
 
+    def clientReconnectTimer(self):
+        self.openClient(self.options["open_ip"])
+        QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
+
     def runGame(self):
         # remove all cards which were there from last game.
         self.removeAll()
-        print("GAMES PLAYED::::", self.my_game.nu_games_played)
         if "Server" in self.options["online_type"] and self.my_game.nu_games_played<1:
             # send cards to clients, wait for all clients
             # wait until all players are connected!
@@ -607,7 +600,6 @@ class cardTableWidget(QWidget):
         #3. Deal Cards:
         for i in range(len(self.my_game.players)):
             if "Server" in self.options["online_type"]:
-                print("YESSS SERVERRRR")
                 if "Server" in self.options["type"][i]:
                     self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
                 else:
@@ -759,7 +751,6 @@ class cardTableWidget(QWidget):
             for i, player in enumerate(self.my_game.players):
                 self.game_play["cards_player_"+str(i)] = deepcopy(player.hand)
         rewards, round_finished, gameOver = self.my_game.step_idx_with_shift(action)
-        print("playVirtualCarddddd", rewards, round_finished, gameOver)
         if round_finished and "Server" in self.options["online_type"] and not self.my_game.shifting_phase:
             self.send_msgServer(-1, "DeleteMid;  ")
         if self.options["save_game_play"]:
