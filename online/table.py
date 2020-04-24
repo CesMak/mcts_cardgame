@@ -293,7 +293,7 @@ class cardTableWidget(QWidget):
             return
 
     def send_msgClient(self, msg):
-        self.tcpSocket.waitForBytesWritten(1000) # waitForBytesWritten  waitForConnected
+        self.tcpSocket.waitForConnected(1000) # waitForBytesWritten  waitForConnected
         # TODO send with name in options[names][0]
         self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
 
@@ -313,7 +313,7 @@ class cardTableWidget(QWidget):
         self.tcpSocket = QTcpSocket(self)
         print("I client connect now with:", ip)
         self.tcpSocket.connectToHost(ip, 8000, QIODevice.ReadWrite)
-        self.tcpSocket.readyRead.connect(self.dealCommunication)
+        self.tcpSocket.readyRead.connect(self.receivedMsgClient)
         self.tcpSocket.error.connect(self.displayErrorClient)
 
         # send start message:
@@ -324,7 +324,7 @@ class cardTableWidget(QWidget):
         else:
             print("Not connected, Server not open?, open_ip wrong? Try to reconnect in 5sec")
 
-    def dealCommunication(self):
+    def receivedMsgClient(self):
         instr = QDataStream(self.tcpSocket)
         instr.setVersion(QDataStream.Qt_5_0)
         if self.blockSize == 0:
@@ -332,6 +332,7 @@ class cardTableWidget(QWidget):
                 return
             self.blockSize = instr.readUInt16()
         if self.tcpSocket.bytesAvailable() < self.blockSize:
+            print("not enought bytes available comming from server", self.tcpSocket.bytesAvailable(), self.blockSize)
             return
         # Print response to terminal, we could use it anywhere else we wanted.
         in_msg = str(instr.readString(), encoding='ascii')
@@ -509,6 +510,7 @@ class cardTableWidget(QWidget):
                 if other:
                     if not (connections["idx"] == idx):
                         connections["conn"].waitForReadyRead(100)
+                        print(len(block))
                         connections["conn"].write(block)
                 else:
                     connections["conn"].waitForReadyRead(100)
