@@ -168,6 +168,8 @@ class cardTableWidget(QWidget):
         self.server_state     = "INIT"
         self.timeouttt        = False
         self.timer            = QTimer(self)
+        self.sendMsgTimerSer  = QTimer(self)
+
 
         ### Client stuff:
         self.clientTimer      = QTimer(self)
@@ -217,6 +219,9 @@ class cardTableWidget(QWidget):
 
     def parseClientMessage(self, msg):
         print("Client received:", msg)
+        self.send_msgClient(self.options["names"][self.clientId]+";##G##;")
+        print("after client received....")
+
         command, message ="", ""
         try:
             command, message = msg.split(";")[0], msg.split(";")[1].replace(";", "")
@@ -293,9 +298,21 @@ class cardTableWidget(QWidget):
             return
 
     def send_msgClient(self, msg):
-        self.tcpSocket.waitForConnected(1000) # waitForBytesWritten  waitForConnected
-        # TODO send with name in options[names][0]
-        self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+        if self.tcpSocket.bytesToWrite()>2:
+            print("Cannot send", msg, "cause there are still", self.tcpSocket.bytesToWrite()," in pipe. I wait now until bytes are written.")
+            try:
+                self.tcpSocket.waitForBytesWritten(5000)
+                print("bytes written??", self.tcpSocket.waitForBytesWritten(), self.tcpSocket.bytesToWrite())
+            except Exception as e:
+                print("Not connecteddd", e)
+            time.sleep(1) # Limits speed but seems to be necessary.
+            print("after sleeep")
+            # TODO send with name in options[names][0]
+            self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+        else:
+            self.tcpSocket.waitForConnected(1000) # waitForBytesWritten  waitForConnected
+            # TODO send with name in options[names][0]
+            self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
 
     def displayErrorClient(self, socketError):
         print("Client Error")
@@ -420,13 +437,14 @@ class cardTableWidget(QWidget):
             # cannot parse this message
             return
 
-        conn["msgs"].append(message)
 
         if not (conn["name"] == client_name):
             print("wrong name", client_name, conn["name"])
             return
 
-        if "WantPlay" in command:
+        if "##G##" in command:
+            self.sendMsgTimerSer.stop()
+        elif "WantPlay" in command:
             card = self.convertCardString2Card(message)
             print("Active Player is:", self.my_game.active_player)
             action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
@@ -482,7 +500,19 @@ class cardTableWidget(QWidget):
                 return conn
         return None
 
-    def send_msgServer(self, idx, msg, other=False):
+
+    def send_msgServer(self, idx, msg, other=False, nu_interval=1000):
+        self.sendTimedServer(idx, msg, other=other)
+        # print("is already active::::", self.sendMsgTimerSer.isActive())
+        if not self.sendMsgTimerSer.isActive():
+            self.sendMsgTimerSer.start(nu_interval)
+            self.sendMsgTimerSer.timeout.connect(lambda: self.sendTimedServer(idx, msg, other=other))
+        else:
+            print("I wanted to send:", idx, msg, "but I have to wait!!!!")
+            QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
+            print("after......")
+
+    def sendTimedServer(self, idx, msg, other=False):
         'idx: connection idx player index, idx=-1 send to all conections, if other=True send to all other but to idx'
         to =""
         if idx==-1:
@@ -625,6 +655,7 @@ class cardTableWidget(QWidget):
         #3. Deal Cards:
         for i in range(len(self.my_game.players)):
             if "Server" in self.options["online_type"]:
+                print("NEW GAME STARTED\n\n\n")
                 if "Server" in self.options["type"][i]:
                     self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
                 else:
@@ -673,6 +704,7 @@ class cardTableWidget(QWidget):
         self.changePlayerName(self.player4_label,  self.options["names"][3]+" ("+self.options["type"][3]+")", highlight=self.getHighlight(3))
 
     def showResultClient(self, i, reward, total_reward, offhandCards):
+        print("Inside Show Client Result!!!")
         labels1 = [self.card1_label, self.card2_label, self.card3_label, self.card4_label]
         labels2 = [self.play_1_state, self.play_2_state, self.play_3_state, self.play_4_state]
         label1 = labels1[i]
