@@ -28,7 +28,10 @@ from gameClasses import card, deck, player, game
 
 import urllib.request
 
-
+# for sending and receiving:
+import secrets
+import threading
+import datetime
 
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
@@ -169,15 +172,24 @@ class cardTableWidget(QWidget):
         self.timeouttt        = False
         self.timer            = QTimer(self)
         self.sendMsgTimerSer  = QTimer(self)
-
+        self.sendMsgTimerAct  = False
+        self.ServerHash       = ""
+        self.serverReceivedHash = []
+        self.currSent         = 0
+        self.thread           = None
 
         ### Client stuff:
         self.clientTimer      = QTimer(self)
+        self.sendMsgTimerCli  = QTimer(self)
         self.tcpSocket        = None
         self.clientCards      = None
         self.clientNames      = None
+        self.clientName       = "aaaa"
         self.clientType       = None
         self.clientId         = -1
+        self.clientHashes     = []
+        self.ClientCardMsg    = ""
+        self.serverStorage    = []
 
 
     def options_clicked(self):
@@ -212,25 +224,36 @@ class cardTableWidget(QWidget):
         return cards
 
     def convertCardString2Card(self, cardmsg):
-        tmp = cardmsg.split("of")
-        value = int(tmp[0].replace("'",""))
-        color = str(tmp[1].replace("of","").replace(" ","").replace("'",""))
-        return card(color, value)
+        try:
+            tmp = cardmsg.split("of")
+            value = int(tmp[0].replace("'",""))
+            color = str(tmp[1].replace("of","").replace(" ","").replace("'",""))
+            return card(color, value)
+        except:
+            return None
+
+    def hashExists(self, hash):
+        for i in self.clientHashes:
+            if hash in i:
+                return True
+        return False
 
     def parseClientMessage(self, msg):
-        print("Client received:", msg)
-        self.send_msgClient(self.options["names"][self.clientId]+";##G##;")
-        print("after client received....")
-
-        command, message ="", ""
+        command, message, hash, msg_to_send, command_to_send ="", "", "", "", ""
         try:
-            command, message = msg.split(";")[0], msg.split(";")[1].replace(";", "")
+            command, message, hash = msg.split(";")[0], msg.split(";")[1].replace(";", ""), msg.split(";")[2]
         except Exception as e:
             print("Client cannot parse incoming message:", msg)
             return
 
+        if self.hashExists(hash):
+            return
+        else:
+            print(">>>>Client received:", msg)
+
         if "InitMyCards" in command:
             self.clientCards = self.convertCardsArray(message)
+            print("Inside InitMyCards", self.clientId)
             self.deal_cards(self.clientCards, self.clientId, fdown=False)
         elif "InitOtherCards" in command:
             cardsStr, player = message.split("--")[0], message.split("--")[1]
@@ -262,7 +285,8 @@ class cardTableWidget(QWidget):
             else:
                 print("Not shifting play card client!!!")
                 card_played = self.playCardClient(item, self.clientId, len(self.midCards), self.options["names"][self.clientId], shifting, nu_shift_cards)
-            self.send_msgClient(self.options["names"][self.clientId]+";ClientPlayed;"+str(action))
+            command_to_send = "ClientPlayedCard"
+            msg_to_send     = "istegal"
         elif "DeleteCards" in command:
             # do this only once:
             self.removeAll()
@@ -291,28 +315,53 @@ class cardTableWidget(QWidget):
             player, reward, total_reward, offhandCards  = int(message.split("--")[0]), message.split("--")[1], message.split("--")[2], self.convertCardsArray(message.split("--")[3])
             self.showResultClient(player, reward, total_reward, offhandCards)
         elif "BackHand" in command:
-            print("BACK HAND:", message)
             self.deckBackSVG = message
+        elif "WaitForCard" in command:
+            command_to_send = "WantPlay"
+            msg_to_send     = self.ClientCardMsg
         else:
-            print("Sry I(Client) did not understand this command", command)
+            print("Sry I(Client) did not understand this command: ", command)
             return
 
+        ### Send Hash back! That server knows that his message was sent sucessfully!
+        self.send_msgClient(self.clientName+";"+command_to_send+";"+msg_to_send+";"+hash+";")
+        self.clientHashes.append(hash)
+
+    def sendTimedClient(self, msg):
+        self.tcpSocket.waitForConnected(1000)
+        self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+
     def send_msgClient(self, msg):
-        if self.tcpSocket.bytesToWrite()>2:
-            print("Cannot send", msg, "cause there are still", self.tcpSocket.bytesToWrite()," in pipe. I wait now until bytes are written.")
-            try:
-                self.tcpSocket.waitForBytesWritten(5000)
-                print("bytes written??", self.tcpSocket.waitForBytesWritten(), self.tcpSocket.bytesToWrite())
-            except Exception as e:
-                print("Not connecteddd", e)
-            time.sleep(1) # Limits speed but seems to be necessary.
-            print("after sleeep")
-            # TODO send with name in options[names][0]
-            self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
-        else:
-            self.tcpSocket.waitForConnected(1000) # waitForBytesWritten  waitForConnected
-            # TODO send with name in options[names][0]
-            self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+        print("<<<<<Client sends", msg)
+        #todo check if message to be sent has enough ; contained!
+        self.tcpSocket.waitForConnected(1000)
+        print("is sending now:")
+        self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+
+        # print("is already active::::", self.sendMsgTimerSer.isActive())
+        # if not self.sendMsgTimerCli.isActive():
+        #     self.sendMsgTimerCli.start(nu_interval)
+        #     self.sendMsgTimerCli.timeout.connect(lambda: self.sendTimedClient(msg))
+        # else:
+        #     print("I wanted to send:",  msg, "but I have to wait!!!!")
+        #     QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
+        #     print("after......")
+
+        # if self.tcpSocket.bytesToWrite()>2:
+        #     print("Cannot send", msg, "cause there are still", self.tcpSocket.bytesToWrite()," in pipe. I wait now until bytes are written.")
+        #     try:
+        #         self.tcpSocket.waitForBytesWritten(5000)
+        #         print("bytes written??", self.tcpSocket.waitForBytesWritten(), self.tcpSocket.bytesToWrite())
+        #     except Exception as e:
+        #         print("Not connecteddd", e)
+        #     time.sleep(1) # Limits speed but seems to be necessary.
+        #     print("after sleeep")
+        #     # TODO send with name in options[names][0]
+        #     self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+        # else:
+        #     self.tcpSocket.waitForConnected(1000) # waitForBytesWritten  waitForConnected
+        #     # TODO send with name in options[names][0]
+        #     self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
 
     def displayErrorClient(self, socketError):
         print("Client Error")
@@ -337,7 +386,8 @@ class cardTableWidget(QWidget):
         connected = self.tcpSocket.waitForConnected(1000)
         if connected:
             self.clientTimer.stop()
-            self.tcpSocket.write(bytes( self.options["names"][0]+";"+"InitClient;Server please init me with my name", encoding='ascii'))
+            self.clientName = self.options["names"][0]
+            self.tcpSocket.write(bytes( self.options["names"][0]+";"+"InitClient;Server please init me with my name;noHash", encoding='ascii'))
         else:
             print("Not connected, Server not open?, open_ip wrong? Try to reconnect in 5sec")
 
@@ -423,18 +473,24 @@ class cardTableWidget(QWidget):
                 return j
         return -1
 
+    def isContained(self, ttmp):
+        if len(self.serverStorage)>0:
+            if self.serverStorage[len(self.serverStorage)-1] == ttmp:
+                return True
+        return False
+
     def parseServerMessage(self, conn, msg):
         if len(msg) == 0: return
-        print(">>>>Server receives", msg)
+        print("\n>>>>Server receives", msg)
         try:
             tmp = msg.split(";")
-            client_name, command, message = tmp[0], tmp[1], tmp[2]
+            client_name, command, message, hash = tmp[0], tmp[1], tmp[2], tmp[3]
             if not "name" in conn and "InitClient" in command:
                 conn["name"] = client_name
             if not "msgs" in conn:
                 conn["msgs"] = []
         except:
-            # cannot parse this message
+            print("\n\nCAUTION CANNOT PARSE THIS MESSAGE")
             return
 
 
@@ -442,33 +498,42 @@ class cardTableWidget(QWidget):
             print("wrong name", client_name, conn["name"])
             return
 
-        if "##G##" in command:
-            self.sendMsgTimerSer.stop()
-        elif "WantPlay" in command:
+        # Teste, dass server niemals genau die gleiche nachricht schon zum zweiten mal direkt hinter einander erhaelt
+        ttmp = client_name+";"+command+";"+message
+        if self.isContained(command): return
+        if len(command)>2 and len(message)>1:
+            self.serverStorage.append(command)
+
+        if "WantPlay" in command:
             card = self.convertCardString2Card(message)
+            if card is None:
+                print("Sry cannot play this card.....")
+                #self.serverReceivedHash = "wronnnggg"
+                return
+
             print("Active Player is:", self.my_game.active_player)
             action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
             if action == -1:
-                self.send_msgServer(conn["idx"], "WantPlayNOK;"+str(card)+" does not belong to active player!")
+                self.send_msgServer(conn["idx"], "WantPlayNOK;"+str(card)+" does not belong to active player!", secrets.token_hex(nbytes=3))
                 return
             is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player) #caution in shifting phase!
             incolor =self.my_game.getInColor()
             # Caution in shifting phase all is allowed!
             print(is_allowed_list_idx, incolor)
             if action not in is_allowed_list_idx and incolor is not None:
-                self.send_msgServer(conn["idx"], "WantPlayNOK;"+"I cannot play"+str(card)+" not allowed!")
+                self.send_msgServer(conn["idx"], "WantPlayNOK;"+"I cannot play"+str(card)+" not allowed!", secrets.token_hex(nbytes=3))
                 return
             # send client requester back that he can play this card.
-            self.send_msgServer(conn["idx"], "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)))
+            self.send_msgServer(conn["idx"], "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3))
             #send to all other clients that this card was put
-            self.send_msgServer(conn["idx"], "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), other=True)
+            ## TODO
+            #self.send_msgServer(conn["idx"], "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3), other=True)
 
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            print("Active Player after is:", self.my_game.active_player)
-        elif "ClientPlayed" in command:
+            print("Active Player after isssss:", self.my_game.active_player)
             print("Client Played card play now virtual card etc.")
-            rewards, round_finished = self.playVirtualCard(int(message))
+            rewards, round_finished = self.playVirtualCard(action)
             if len(self.my_game.players[self.my_game.active_player].hand)==0:
                 self.checkFinished()
                 self.showResult(rewards)
@@ -476,16 +541,22 @@ class cardTableWidget(QWidget):
             self.checkFinished()
             print("Active Player after is:", self.my_game.active_player)
             if "Server" in self.options["online_type"]:
+                print("INside hereee")
+                print(self.thread)
+                #print(eee)
                 self.playUntilClient()
             else:
                 #5. Play until human:
+                print("Inside play until human")
                 self.playUntilHuman()
-        elif "   " in command:
-            print("hallo")
-        else:
-            print("not understood command:", command)
+
+
+        print("End of parseServerMessage", self.thread)
+        self.serverReceivedHash.append(hash)
+        print("End of parseServerMessage", self.thread)
 
     def receivedMessagesServer(self):
+        print("Received message ")
         for conn in self.clientConnections:
             self.parseServerMessage(conn, str(conn["conn"].readAll(), encoding='ascii'))
         #check for state all_connected?
@@ -500,19 +571,44 @@ class cardTableWidget(QWidget):
                 return conn
         return None
 
+    def checkHash(self, inHash):
+        for i in self.serverReceivedHash:
+            if i == inHash:
+                return True
+        return False
 
-    def send_msgServer(self, idx, msg, other=False, nu_interval=1000):
-        self.sendTimedServer(idx, msg, other=other)
-        # print("is already active::::", self.sendMsgTimerSer.isActive())
-        if not self.sendMsgTimerSer.isActive():
-            self.sendMsgTimerSer.start(nu_interval)
-            self.sendMsgTimerSer.timeout.connect(lambda: self.sendTimedServer(idx, msg, other=other))
-        else:
-            print("I wanted to send:", idx, msg, "but I have to wait!!!!")
+
+    def send_msgServer(self, idx, msg, sendHash, other=False, nu_interval=0.01, alwayse_newHash = False):
+        # Starte Thread der im Hintergrund die Messages schickt
+        start         = datetime.datetime.now()
+        self.currSent = 0
+        for i in range(5):
+            if not (self.checkHash(sendHash)):
+                print(datetime.datetime.now()- start)
+                if alwayse_newHash:
+                    sendHash = secrets.token_hex(nbytes=3)
+                self.thread = threading.Thread(target=self.sendTimedServer, args=(nu_interval*i, idx, msg+";"+sendHash, other,))
+                self.thread.start()
+                QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
+                self.thread.join()
+            else:
+                self.thread.join()
+                break
+
+    def send_msgServerOld(self, idx, msg, sendHash, other=False, nu_interval=1000):
+        while (not self.serverReceivedHash in sendHash) and self.currSent <10:
+            # self.sendMsgTimerSer.timeout.connect(lambda: self.sendTimedServer(idx, msg+";"+self.ServerHash, other=other))
+            # self.sendMsgTimerSer.start(1000)
+            self.sendMsgTimerSer.singleShot(10, lambda: self.sendTimedServer(idx, msg+";"+sendHash, other=other))
             QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-            print("after......")
+        print("stop nowwwww", msg, self.serverReceivedHash, sendHash)
+        self.sendMsgTimerSer.stop()
+        self.currSent = 0
 
-    def sendTimedServer(self, idx, msg, other=False):
+    def sendTimedServer(self, sleep_time, idx, msg, other=False):
+        time.sleep(sleep_time)
+        print("<<<<Server sends:", idx, msg, self.currSent)
+        self.currSent +=1
         'idx: connection idx player index, idx=-1 send to all conections, if other=True send to all other but to idx'
         to =""
         if idx==-1:
@@ -528,8 +624,6 @@ class cardTableWidget(QWidget):
         # We are using PyQt5 so set the QDataStream version accordingly.
         out.setVersion(QDataStream.Qt_5_0)
         out.writeUInt16(0)
-        print(">>>>>Server sends:", msg, "other:", other)
-
         out.writeString(bytes(msg, encoding='ascii'))
         out.device().seek(0)
         out.writeUInt16(block.size() - 2)
@@ -540,7 +634,6 @@ class cardTableWidget(QWidget):
                 if other:
                     if not (connections["idx"] == idx):
                         connections["conn"].waitForReadyRead(100)
-                        print(len(block))
                         connections["conn"].write(block)
                 else:
                     connections["conn"].waitForReadyRead(100)
@@ -650,12 +743,13 @@ class cardTableWidget(QWidget):
             _, tmp = self.getNuClients()
             for i, conn in enumerate(self.clientConnections):
                 self.options["names"][tmp[i]] = conn["name"]
-            self.send_msgServer(-1, "BackHand;"+self.deckBackSVG)
+            self.send_msgServer(-1, "BackHand;"+self.deckBackSVG, secrets.token_hex(nbytes=3))
+            print("AFTER SEND MSGS ")
 
         #3. Deal Cards:
+        print("Deal Cards now: \n")
         for i in range(len(self.my_game.players)):
             if "Server" in self.options["online_type"]:
-                print("NEW GAME STARTED\n\n\n")
                 if "Server" in self.options["type"][i]:
                     self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
                 else:
@@ -665,17 +759,80 @@ class cardTableWidget(QWidget):
 
         if "Server" in self.options["online_type"]:
             if self.my_game.nu_games_played<1:
-                self.send_msgServer(-1, "Names;"+str(self.options["names"]))
-                self.send_msgServer(-1, "Type;"+str(self.options["type"]))
+                self.send_msgServer(-1, "Names;"+str(self.options["names"]), secrets.token_hex(nbytes=3))
+                self.send_msgServer(-1, "Type;"+str(self.options["type"]), secrets.token_hex(nbytes=3))
 
             # send all cards to all clients:
-            self.send_msgServer(-1, "DeleteCards;"+"  ")
+            self.send_msgServer(-1, "DeleteCards;"+"  ", secrets.token_hex(nbytes=3))
             for i in range(len(self.my_game.players)):
                 for conn in self.clientConnections:
                     if conn["name"] == self.options["names"][i]:
-                        self.send_msgServer(conn["idx"], "InitMyCards;"+str(self.my_game.players[i].hand))
+                        self.send_msgServer(conn["idx"], "InitMyCards;"+str(self.my_game.players[i].hand), secrets.token_hex(nbytes=3))
                     else:
-                        self.send_msgServer(conn["idx"], "InitOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i))
+                        self.send_msgServer(conn["idx"], "InitOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i), secrets.token_hex(nbytes=3))
+            print(">>>Please play first card as server!")
+
+        # 4. Setup Names:
+        self.setNames()
+        self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
+
+        if "Server" in self.options["online_type"]:
+            self.playUntilClient()
+        else:
+            #5. Play until human:
+            self.playUntilHuman()
+
+
+    def runGameOld(self):
+        # remove all cards which were there from last game.
+        self.removeAll()
+        if "Server" in self.options["online_type"] and self.my_game.nu_games_played<1:
+            # get open ip:
+            page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
+            print("THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
+
+            # send cards to clients, wait for all clients
+            # wait until all players are connected!
+            print("Wait for all players to be connected!", self.server_state, self.clientConnections)
+            while "ALL_CONNECTED" not in self.server_state:
+                if not self.timeouttt:
+                    self.timer.timeout.connect(self.servertimeout)
+                    self.timer.start(5000)
+                    self.timeouttt = True
+                QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
+            self.timer.stop()
+            print("All clients are connected now:")
+            print(self.clientConnections, "\n")
+            #update names if all are connected.
+            _, tmp = self.getNuClients()
+            for i, conn in enumerate(self.clientConnections):
+                self.options["names"][tmp[i]] = conn["name"]
+            self.send_msgServer(-1, "BackHand;"+self.deckBackSVG, secrets.token_hex(nbytes=3))
+
+        #3. Deal Cards:
+        print("Deal Cards now: \n")
+        for i in range(len(self.my_game.players)):
+            if "Server" in self.options["online_type"]:
+                if "Server" in self.options["type"][i]:
+                    self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
+                else:
+                    self.deal_cards(self.my_game.players[i].hand, i, fdown=True)
+            else:
+                self.deal_cards(self.my_game.players[i].hand, i, fdown=self.options["faceDown"][i])
+
+        if "Server" in self.options["online_type"]:
+            if self.my_game.nu_games_played<1:
+                self.send_msgServer(-1, "Names;"+str(self.options["names"]), secrets.token_hex(nbytes=3))
+                self.send_msgServer(-1, "Type;"+str(self.options["type"]), secrets.token_hex(nbytes=3))
+
+            # send all cards to all clients:
+            self.send_msgServer(-1, "DeleteCards;"+"  ", secrets.token_hex(nbytes=3))
+            for i in range(len(self.my_game.players)):
+                for conn in self.clientConnections:
+                    if conn["name"] == self.options["names"][i]:
+                        self.send_msgServer(conn["idx"], "InitMyCards;"+str(self.my_game.players[i].hand), secrets.token_hex(nbytes=3))
+                    else:
+                        self.send_msgServer(conn["idx"], "InitOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i), secrets.token_hex(nbytes=3))
             print(">>>Please play first card as server!")
 
         # 4. Setup Names:
@@ -724,7 +881,7 @@ class cardTableWidget(QWidget):
             offhand_cards = [item for sublist in  self.my_game.players[i].offhand for item in sublist]
             self.deal_cards(offhand_cards, i)
             if "Server" in self.options["online_type"] and len(offhand_cards)>0:
-                self.send_msgServer(-1, "ShowResult;"+str(i)+"--"+str(int(rewards["total_rewards"][i]))+"--"+str(int(self.my_game.total_rewards[i]))+"--"+str(offhand_cards))
+                self.send_msgServer(-1, "ShowResult;"+str(i)+"--"+str(int(rewards["total_rewards"][i]))+"--"+str(int(self.my_game.total_rewards[i]))+"--"+str(offhand_cards), secrets.token_hex(nbytes=3))
             i +=1
         self.view.viewport().repaint()
         time.sleep(self.options["sleepTime"]*50)
@@ -809,7 +966,7 @@ class cardTableWidget(QWidget):
                 self.game_play["cards_player_"+str(i)] = deepcopy(player.hand)
         rewards, round_finished, gameOver = self.my_game.step_idx_with_shift(action)
         if round_finished and "Server" in self.options["online_type"] and not self.my_game.shifting_phase:
-            self.send_msgServer(-1, "DeleteMid;  ")
+            self.send_msgServer(-1, "DeleteMid;  ", secrets.token_hex(nbytes=3))
         if self.options["save_game_play"]:
             self.game_play["moves"].append([current_player, action])
             if len(self.my_game.played_cards) == 60:
@@ -818,21 +975,29 @@ class cardTableWidget(QWidget):
         return rewards, round_finished
 
     def playUntilClient(self):
-        print("playUnitlClient:", self.my_game.ai_player[self.my_game.active_player])
+        print("playUnitlClient:", self.my_game.ai_player[self.my_game.active_player], self.my_game.ai_player)
         while (not "Client" in self.my_game.ai_player[self.my_game.active_player]) and (not "Server" in self.my_game.ai_player[self.my_game.active_player]):
             action = self.selectAction()
             item = self.findGraphicsCardItem(action, self.my_game.active_player)
             self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
             if "Server" in self.options["online_type"]:
-                self.send_msgServer(-1, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(item.card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)))
+                self.send_msgServer(-1, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(item.card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3))
+            print("after put card")
             rewards, round_finished = self.playVirtualCard(action)
+            print("after play Virtual card")
             if len(self.my_game.players[self.my_game.active_player].hand)==0:
                 self.checkFinished()
                 self.showResult(rewards)
+                print("finished.....")
                 return
             self.setNames()
             self.checkFinished()
+            print("checkfinished  active Player:::",  self.my_game.ai_player[self.my_game.active_player])
             self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1)+" Round: "+str(self.my_game.current_round+1))
+        if "Client" in self.my_game.ai_player[self.my_game.active_player]:
+            print("Now its a clients move!")
+            self.send_msgServer(0, "WaitForCard;"+"I wait for your card now to be played (for 10 secs)", secrets.token_hex(nbytes=3), nu_interval=2, alwayse_newHash=True)
+        print("End of PlayUntil Client")
 
     def playUntilHuman(self):
         print("inside playUntil Human")
@@ -944,13 +1109,13 @@ class cardTableWidget(QWidget):
 
             if "Server" in self.options["online_type"]:
                 # send dealt cards to clients
-                self.send_msgServer(-1, "DeleteCards;"+"   ")
+                self.send_msgServer(-1, "DeleteCards;"+"   ", secrets.token_hex(nbytes=3))
                 for i in range(len(self.my_game.players)):
                     for conn in self.clientConnections:
                         if conn["name"] == self.options["names"][i]:
-                            self.send_msgServer(conn["idx"], "ShiftMyCards;"+str(self.my_game.players[i].hand))
+                            self.send_msgServer(conn["idx"], "ShiftMyCards;"+str(self.my_game.players[i].hand), secrets.token_hex(nbytes=3))
                         else:
-                            self.send_msgServer(conn["idx"], "ShiftOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i))
+                            self.send_msgServer(conn["idx"], "ShiftOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i), secrets.token_hex(nbytes=3))
 
         if len(self.midCards)>=4:
             time.sleep(self.options["sleepTime"])
@@ -990,7 +1155,7 @@ class cardTableWidget(QWidget):
         if "Client" in self.options["online_type"]:
             # let the folowing line to get exception!
             self.clientCards.index(card.card)
-            self.send_msgClient(self.options["names"][self.clientId]+";WantPlay;"+str(card.card))
+            self.ClientCardMsg = str(card.card)
         else:
             if "Client" in self.my_game.ai_player[self.my_game.active_player]:
                 print("We wait for client", self.my_game.players[self.my_game.active_player], "currently.... you as Server cannot play his card!")
@@ -1008,7 +1173,8 @@ class cardTableWidget(QWidget):
                 return
             card_played = self.playCard(card, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
             if "Server" in self.options["online_type"]:
-                self.send_msgServer(-1, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card.card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)))
+                print("Before Card Pressed")
+                self.send_msgServer(-1, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card.card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3))
             if card_played:
                 rewards, round_finished = self.playVirtualCard(action)
                 print(rewards, round_finished)
@@ -1018,6 +1184,7 @@ class cardTableWidget(QWidget):
                     return
                 self.checkFinished()
                 if "Server" in self.options["online_type"]:
+                    print("Before card presssed")
                     self.playUntilClient()
                 else:
                     #5. Play until human:
