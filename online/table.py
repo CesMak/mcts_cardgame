@@ -19,7 +19,7 @@ from copy import deepcopy
 
 # For server / client:
 import socket
-from PyQt5.QtCore import QDataStream, QIODevice, QByteArray, QCoreApplication, QEventLoop
+from PyQt5.QtCore import QDataStream, QIODevice, QByteArray, QCoreApplication, QEventLoop, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QLineEdit, QLabel, QVBoxLayout
 from PyQt5.QtNetwork import QTcpSocket, QAbstractSocket, QTcpServer, QHostAddress
 import re
@@ -73,6 +73,7 @@ class CardGraphicsItem(QtSvg.QGraphicsSvgItem):
 
 
 class cardTableWidget(QWidget):
+    server_receivedSig             = pyqtSignal(str, int)
     """ main widget for handling the card table """
     def __init__(self, parent=None):
         super(QWidget, self).__init__(parent)
@@ -168,6 +169,9 @@ class cardTableWidget(QWidget):
         self.server_state     = "INIT"
         self.timeouttt        = False
         self.timer            = QTimer(self)
+        self.corrString       = ""
+        # emit signal:
+        self.server_receivedSig.connect(self.serverStringReceived)
 
         ### Client stuff:
         self.clientTimer      = QTimer(self)
@@ -405,6 +409,57 @@ class cardTableWidget(QWidget):
                 return j
         return -1
 
+    def parseCustomMessage(self, idx, msg):
+        if len(msg) == 0: return
+        print(">>>>Server receives",idx, msg)
+        try:
+            tmp = msg.split(";")
+            client_name, command, message = tmp[0], tmp[1], tmp[2]
+        except:
+            print("ERRRORRRR ")
+            return
+        if "WantPlay" in command:
+            card = self.convertCardString2Card(message)
+            print("Active Player is:", self.my_game.active_player)
+            action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
+            if action == -1:
+                self.send_msgServer(idx, "WantPlayNOK;"+str(card)+" does not belong to active player!")
+                return
+            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player) #caution in shifting phase!
+            incolor =self.my_game.getInColor()
+            # Caution in shifting phase all is allowed!
+            print(is_allowed_list_idx, incolor)
+            if action not in is_allowed_list_idx and incolor is not None:
+                self.send_msgServer(idx, "WantPlayNOK;"+"I cannot play"+str(card)+" not allowed!")
+                return
+            # send client requester back that he can play this card.
+            self.send_msgServer(idx, "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)))
+            #send to all other clients that this card was put
+            self.send_msgServer(idx, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), other=True)
+
+            item = self.findGraphicsCardItem(action, self.my_game.active_player)
+            card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
+            print("Active Player after is:", self.my_game.active_player)
+        elif "ClientPlayed" in command:
+            print("Client Played card play now virtual card etc.")
+            rewards, round_finished = self.playVirtualCard(int(message))
+            if len(self.my_game.players[self.my_game.active_player].hand)==0:
+                self.checkFinished()
+                self.showResult(rewards)
+                return
+            self.checkFinished()
+            print("Active Player after is:", self.my_game.active_player)
+            if "Server" in self.options["online_type"]:
+                self.playUntilClient()
+            else:
+                #5. Play until human:
+                self.playUntilHuman()
+        elif "   " in command:
+            print("hallo")
+        else:
+            print("not understood command:", command)
+
+
     def parseServerMessage(self, conn, msg):
         if len(msg) == 0: return
         print(">>>>Server receives", msg)
@@ -413,13 +468,9 @@ class cardTableWidget(QWidget):
             client_name, command, message = tmp[0], tmp[1], tmp[2]
             if not "name" in conn and "InitClient" in command:
                 conn["name"] = client_name
-            if not "msgs" in conn:
-                conn["msgs"] = []
         except:
             # cannot parse this message
             return
-
-        conn["msgs"].append(message)
 
         if not (conn["name"] == client_name):
             print("wrong name", client_name, conn["name"])
@@ -466,9 +517,39 @@ class cardTableWidget(QWidget):
         else:
             print("not understood command:", command)
 
+    @pyqtSlot(str,int)
+    def serverStringReceived(self, msg, idx):
+        assert isinstance(msg, str)
+        assert isinstance(idx, int)
+        print("\n\nSignal emitted\n", msg)
+        self.parseCustomMessage(idx, msg)
+
+    def receivedMsgClientttt(self, conn):
+        socket = conn["conn"]
+        print("Check if match:", socket.bytesAvailable(), self.blockSize)
+        incoming = str(socket.readAll(),  encoding='ascii')
+        print("Server rceived:", incoming)
+        if "Ende" in incoming:
+            a = (incoming.split("Ende"))
+            print("Nu Ende in incomming:", len(a))
+            self.corrString +=a[0]
+
+            self.server_receivedSig.emit(self.corrString, conn["idx"])
+
+            #delete self.corr
+            if len(a)>1:
+                self.corrString = a[1]
+            else:
+                self.corrString = ""
+        else:
+            self.corrString +=incoming
+
     def receivedMessagesServer(self):
         for conn in self.clientConnections:
-            self.parseServerMessage(conn, str(conn["conn"].readAll(), encoding='ascii'))
+            if "name" in conn:
+                self.receivedMsgClientttt(conn)
+            else:
+                self.parseServerMessage(conn, str(conn["conn"].readAll(), encoding='ascii'))
         #check for state all_connected?
         tmp, _ = self.getNuClients()
         if len(self.clientConnections) == tmp:
@@ -481,7 +562,7 @@ class cardTableWidget(QWidget):
                 return conn
         return None
 
-    def send_msgServer(self, idx, msg, other=False):
+    def send_msgServer(self, idx, msg, other=False, nu=3):
         'idx: connection idx player index, idx=-1 send to all conections, if other=True send to all other but to idx'
         to =""
         if idx==-1:
@@ -517,6 +598,10 @@ class cardTableWidget(QWidget):
             co = conn["conn"]
             co.waitForReadyRead(100)
             co.write(block)
+        time.sleep(5)
+        # if nu>0
+        #     nu -=1
+        #     self.send_msgServer(idx, "Empty", other=other)
 
     def getIP(self):
         hostname = socket.gethostname()
