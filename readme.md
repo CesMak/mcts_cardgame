@@ -2,20 +2,27 @@
 
 To play a card as HUMAN **double click** the card.
 
-# Windows
-Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
-MultiPlayer Version [witches_ai_0.1.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
+# Windows EXE Versions
+* Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
+* MultiPlayer [witches_ai_0.1.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
+* **Most recent** MultiPlayer [witches_ai_0.2.zip](TODO)
 
 # Linux
 Commited Versions:
   * commit **witches_0.1** Beta shifting included in learning process
   * commit **witches_0.2** Beta shifting included also in gui.py (fixed core dumped when playing with human)
+  * commit **witches_0.3** MultiPlayer Version see in **online folder**
+
 ```
+# for single Player (one PC)
 python gui.py
+# for multi Player (online TCP Server-Client)
+python start_server.py
+python start_client.py
 ```
 
 # Options
-See file **gui_options.json**
+This are example options for the Linux Version (not online one) see also **gui_options.json**
 ```json
 {
   "names": ["Laura", "Alfons", "Frank", "Lea"],
@@ -38,14 +45,10 @@ See file **gui_options.json**
 }
 ```
 
-# Playing online
-Use this configuration:
-|Option|Server|Client|
-|--|--|--|
-|online_type|Server|Client|
-|open_ip|any|172.168.11.5 (e.g.)|
-|names|['Max', ...] updated|['Hans'] <- unique name|
-|type|['Server', 'Client', ...]|['Client']|
+# Instructions online Version (Windows)
+Go to the **online** folder and see the option files.
+
+TODO see video for hints
 
 # Player Types
   * RANDOM: plays a random possible card

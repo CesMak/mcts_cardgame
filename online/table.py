@@ -1,9 +1,9 @@
-from __future__ import print_function
 import sys
-from PyQt5.QtWidgets import *
 import os
-from PyQt5.QtCore import *
-from PyQt5.QtGui  import *
+from PyQt5.QtGui  import QFont, QPainter, QColor, QBrush, QPen
+from PyQt5.QtCore import QDataStream, QIODevice, QByteArray, QCoreApplication, QEventLoop, pyqtSignal, pyqtSlot, Qt, QRectF, QPointF, QTimer, QPoint
+from PyQt5.QtWidgets import QApplication, QPushButton, QGraphicsView, QWidget, QGraphicsScene, QGridLayout
+from PyQt5.QtNetwork import QTcpSocket, QAbstractSocket
 from PyQt5 import QtSvg
 import time
 import easygui
@@ -14,24 +14,22 @@ from prettyjson import prettyjson
 import onnxruntime
 import numpy as np
 
+import threading
 import pickle
-from copy import deepcopy
 
 # For server / client:
-import socket
-from PyQt5.QtCore import QDataStream, QIODevice, QByteArray, QCoreApplication, QEventLoop, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QLineEdit, QLabel, QVBoxLayout
-from PyQt5.QtNetwork import QTcpSocket, QAbstractSocket, QTcpServer, QHostAddress
+import socket # required in get IP
 import re
 import ast
 from gameClasses import card, deck, player, game
 
 import urllib.request
 
-# for sending and receiving:
-import secrets
-import threading
-import datetime
+import random
+
+# Copyright
+# Author Markus Lamprecht (www.simact.de) 08.12.2019
+# A card game named Witches:
 
 class QGraphicsViewExtend(QGraphicsView):
     """ extends QGraphicsView for resize event handling  """
@@ -46,43 +44,26 @@ class QGraphicsViewExtend(QGraphicsView):
 
 class CardGraphicsItem(QtSvg.QGraphicsSvgItem):
     """ Extends QtSvg.QGraphicsSvgItem for card items graphics """
-    def __init__(self, card, ind, svgFile, player=0, faceDown=True):
+    def __init__(self, my_card, ind, svgFile, player=0, faceDown=True):
         super(CardGraphicsItem, self).__init__(svgFile)
-        # special properties
-        self.card = card
-        self.svgFile = svgFile # svg file for card graphics
-        self.player = player # which player holds the card
+        self.card     = card(my_card.color, my_card.value)
+        self.svgFile  = svgFile # svg file for card graphics
+        self.player   = player # which player holds the card
         self.faceDown = faceDown # does the card faceDown
-        self.anim = QPropertyAnimation() # will use to animate card movement
-        #self.isPressed = False
-
-        #default properties
-        # IF CORE DUMPED uncomment following line"
-        #self.setAcceptHoverEvents(True) #by Qt default it is set to False
-
-    def hoverEnterEvent(self, event):
-        """ event when mouse enter a card """
-        try:
-            effect = QGraphicsDropShadowEffect(self)
-            effect.setBlurRadius(15)
-            effect.setColor(Qt.red)
-            effect.setOffset(QPointF(-5,0))
-            self.setGraphicsEffect(effect)
-        except:
-            print("error")
+        self.isPlayed = False
 
     def __repr__(self):
         return '<CardGraphicsItem: %s>' % self.card
 
 
 class cardTableWidget(QWidget):
-    server_receivedSig             = pyqtSignal(str, int)
+    server_receivedSig             = pyqtSignal(str)
     """ main widget for handling the card table """
     def __init__(self, parent=None):
         super(QWidget, self).__init__(parent)
-        self.initUI()
+        # init is done in start_server.py
 
-    def initUI(self):
+    def initUI(self, path_to_options):
         """ initialize the view-scene graphic environment """
         self.scene = QGraphicsScene()
         #self.scene.setSceneRect(0, 0, 640, 480)
@@ -96,7 +77,7 @@ class cardTableWidget(QWidget):
         self.setBackgroundColor(QColor('green'))
 
         # special properties
-        self.svgCardsPath = "cards"
+        self.svgCardsPath = "../cards"
         self.cardsGraphItems = [] #holds all the cards items
         self.defInsertionPos = QPointF(0,0)
         self.defAngle = 0
@@ -106,7 +87,7 @@ class cardTableWidget(QWidget):
         self.playersHandsPos = [(75, 50, 0), (210, 50, 180), (680, 50, 0), (210, 385, 0)] #(x,y,angle)
         self.defHandSpacing = 24
         self.midCards  = []
-        self.options_file_path =  "gui_options.json"
+        self.options_file_path =  path_to_options
 
         # Card fields
         pen = QPen()
@@ -128,12 +109,14 @@ class cardTableWidget(QWidget):
         self.card4_label   = self.addPlayerLabel(200+120*3, 210, "")
 
         self.card_label_l  = [self.card1_label, self.card2_label, self.card3_label, self.card4_label]
+        self.card_label_pla= [self.player1_label, self.player2_label, self.player3_label, self.player4_label]
 
         self.play_1_state  = self.addPlayerLabel(200, 250, "")
         self.play_2_state  = self.addPlayerLabel(200+120, 250, "")
         self.play_3_state  = self.addPlayerLabel(200+120*2, 250, "")
         self.play_4_state  = self.addPlayerLabel(200+120*3, 250, "")
         self.game_indicator= self.addPlayerLabel(650, 5, "Game: ")
+        self.mode_label    = self.addPlayerLabel(150, 5, "Mode: ")
 
         playbtn = QPushButton('Start', self)
         playbtn.resize(50, 32)
@@ -151,8 +134,6 @@ class cardTableWidget(QWidget):
         nextRound.setVisible(False)
         nextRound.clicked.connect(self.nextRound_clicked)
 
-
-
         self.scene.addWidget(playbtn)
         self.scene.addWidget(nextRound)
         self.scene.addWidget(options)
@@ -165,39 +146,31 @@ class cardTableWidget(QWidget):
         # Storing game_play
         self.game_play = {}
 
-        ### Server stuff:
-        self.tcpServer        = None
-        self.clientConnections= []
-        self.blockSize        = 0
-        self.server_state     = "INIT"
-        self.timeouttt        = False
-        self.timer            = QTimer(self)
-<<<<<<< HEAD
         self.corrString       = ""
         # emit signal:
-        self.server_receivedSig.connect(self.serverStringReceived)
-||||||| merged common ancestors
-=======
-        self.sendMsgTimerSer  = QTimer(self)
-        self.sendMsgTimerAct  = False
-        self.ServerHash       = ""
-        self.serverReceivedHash = []
-        self.currSent         = 0
-        self.thread           = None
->>>>>>> d6ab410f32c009f8f5388ed2f6c1f35c60d3fa07
+        self.server_receivedSig.connect(self.parseClient)
 
         ### Client stuff:
         self.clientTimer      = QTimer(self)
-        self.sendMsgTimerCli  = QTimer(self)
         self.tcpSocket        = None
+        self.games_played     = 0
+        self.reset_client()
+
+
+    def reset_client(self):
+        # used  also in "Restart"
+        self.removeAll()
+        self.deckBackSVG      = 'back_1' # in shifting phase soll man karten sehen!
         self.clientCards      = None
-        self.clientNames      = None
-        self.clientName       = "aaaa"
-        self.clientType       = None
-        self.clientId         = -1
-        self.clientHashes     = []
-        self.ClientCardMsg    = ""
-        self.serverStorage    = []
+        self.ClientName       = ""
+        self.dealAgain        = False
+        self.GameOver         = False
+        self.gotCards         = 0
+        self.rounds_played    = 1
+        self.nuSend           = 0
+        self.nuReceived       = 0
+        self.wantPlay         = ""
+        self.games_played     += 1
 
 
     def options_clicked(self):
@@ -217,11 +190,8 @@ class cardTableWidget(QWidget):
         '''
         Reset the game with the same options as before!
         '''
-        if self.my_game is not None:
-            self.my_game.reset_game()
-            self.runGame()
-        else:
-            print("Error, click start first!")
+        print("This option is not available!")
+
 #########################CLIENT #################################
 #########################CLIENT #################################
 #########################CLIENT #################################
@@ -232,147 +202,17 @@ class cardTableWidget(QWidget):
         return cards
 
     def convertCardString2Card(self, cardmsg):
-        try:
-            tmp = cardmsg.split("of")
-            value = int(tmp[0].replace("'",""))
-            color = str(tmp[1].replace("of","").replace(" ","").replace("'",""))
-            return card(color, value)
-        except:
-            return None
-
-    def hashExists(self, hash):
-        for i in self.clientHashes:
-            if hash in i:
-                return True
-        return False
-
-    def parseClientMessage(self, msg):
-        command, message, hash, msg_to_send, command_to_send ="", "", "", "", ""
-        try:
-            command, message, hash = msg.split(";")[0], msg.split(";")[1].replace(";", ""), msg.split(";")[2]
-        except Exception as e:
-            print("Client cannot parse incoming message:", msg)
-            return
-
-        if self.hashExists(hash):
-            return
-        else:
-            print(">>>>Client received:", msg)
-
-        if "InitMyCards" in command:
-            self.clientCards = self.convertCardsArray(message)
-            print("Inside InitMyCards", self.clientId)
-            self.deal_cards(self.clientCards, self.clientId, fdown=False)
-        elif "InitOtherCards" in command:
-            cardsStr, player = message.split("--")[0], message.split("--")[1]
-            self.deal_cards(self.convertCardsArray(cardsStr), int(player), fdown=True)
-        elif "Names" in command:
-            self.clientNames =ast.literal_eval(message)
-            for i,j in enumerate(self.clientNames):
-                if self.options["names"][0] == j:
-                    self.clientId =i
-                    break
-            self.options["names"] = self.clientNames
-            #update board with client names
-        elif "Type" in command:
-            self.clientType  = ast.literal_eval(message)
-            self.options["type"] = self.clientType
-            self.setNames()
-        elif "NOK" in command:
-            print("Error: NOK", message)
-        elif "PlayCard" in command:
-            player_name, card = message.split(",")[0].replace(" ",""), self.convertCardString2Card(message.split(",")[1])
-            shifting, nu_shift_cards, action, on_table_cards = message.split(",")[2], int(message.split(",")[3]), message.split(",")[4], int(message.split(",")[5])
-            item = self.findGraphicsCardItem_(card)
-            if "False" in shifting:
-                shifting = False
-            else:
-                shfiting = True
-            if shifting:
-                card_played = self.playCardClient(item, self.clientId, on_table_cards, self.options["names"][self.clientId], shifting, nu_shift_cards)
-            else:
-                print("Not shifting play card client!!!")
-                card_played = self.playCardClient(item, self.clientId, len(self.midCards), self.options["names"][self.clientId], shifting, nu_shift_cards)
-            command_to_send = "ClientPlayedCard"
-            msg_to_send     = "istegal"
-        elif "DeleteCards" in command:
-            # do this only once:
-            self.removeAll()
-        elif "ShiftMyCards" in command:
-            self.clientCards = self.convertCardsArray(message)
-            self.deal_cards(self.clientCards, self.clientId, fdown=False)
-        elif "ShiftOtherCards" in command:
-            cardsStr, player = message.split("--")[0], message.split("--")[1]
-            self.deal_cards(self.convertCardsArray(cardsStr), int(player), fdown=True)
-        elif "PutCard" in command:
-            player_name, card = message.split(",")[0].replace(" ",""), self.convertCardString2Card(message.split(",")[1])
-            shifting, nu_shift_cards, action, player, on_table_cards = bool(message.split(",")[2]), int(message.split(",")[3]), message.split(",")[4], message.split(",")[5], int(message.split(",")[6])
-            if "False" in message.split(",")[2]:
-                shifting = False
-            item = self.findGraphicsCardItem_(card)
-            if shifting:
-                card_played = self.playCardClient(item, int(player), on_table_cards, self.options["names"][int(player)], bool(shifting), nu_shift_cards)
-            else:
-                card_played = self.playCardClient(item, int(player), len(self.midCards), self.options["names"][int(player)], bool(shifting), nu_shift_cards)
-        elif "DeleteMid" in command:
-            self.removeMidNames()
-            for i in self.midCards:
-                self.removeCard(i)
-            self.midCards = []
-        elif "ShowResult" in command:
-            player, reward, total_reward, offhandCards  = int(message.split("--")[0]), message.split("--")[1], message.split("--")[2], self.convertCardsArray(message.split("--")[3])
-            self.showResultClient(player, reward, total_reward, offhandCards)
-        elif "BackHand" in command:
-            self.deckBackSVG = message
-        elif "WaitForCard" in command:
-            command_to_send = "WantPlay"
-            msg_to_send     = self.ClientCardMsg
-        else:
-            print("Sry I(Client) did not understand this command: ", command)
-            return
-
-        ### Send Hash back! That server knows that his message was sent sucessfully!
-        self.send_msgClient(self.clientName+";"+command_to_send+";"+msg_to_send+";"+hash+";")
-        self.clientHashes.append(hash)
-
-    def sendTimedClient(self, msg):
-        self.tcpSocket.waitForConnected(1000)
-        self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
+        tmp = cardmsg.split("of")
+        value = int(tmp[0].replace("'",""))
+        color = str(tmp[1].replace("of","").replace(" ","").replace("'",""))
+        return card(color, value)
 
     def send_msgClient(self, msg):
-        print("<<<<<Client sends", msg)
-        #todo check if message to be sent has enough ; contained!
-        self.tcpSocket.waitForConnected(1000)
-        print("is sending now:")
+        self.tcpSocket.waitForBytesWritten(100) # waitForBytesWritten  waitForConnected
         self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
 
-        # print("is already active::::", self.sendMsgTimerSer.isActive())
-        # if not self.sendMsgTimerCli.isActive():
-        #     self.sendMsgTimerCli.start(nu_interval)
-        #     self.sendMsgTimerCli.timeout.connect(lambda: self.sendTimedClient(msg))
-        # else:
-        #     print("I wanted to send:",  msg, "but I have to wait!!!!")
-        #     QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-        #     print("after......")
-
-        # if self.tcpSocket.bytesToWrite()>2:
-        #     print("Cannot send", msg, "cause there are still", self.tcpSocket.bytesToWrite()," in pipe. I wait now until bytes are written.")
-        #     try:
-        #         self.tcpSocket.waitForBytesWritten(5000)
-        #         print("bytes written??", self.tcpSocket.waitForBytesWritten(), self.tcpSocket.bytesToWrite())
-        #     except Exception as e:
-        #         print("Not connecteddd", e)
-        #     time.sleep(1) # Limits speed but seems to be necessary.
-        #     print("after sleeep")
-        #     # TODO send with name in options[names][0]
-        #     self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
-        # else:
-        #     self.tcpSocket.waitForConnected(1000) # waitForBytesWritten  waitForConnected
-        #     # TODO send with name in options[names][0]
-        #     self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
-
     def displayErrorClient(self, socketError):
-        print("Client Error")
+        self.changePlayerName(self.mode_label,  "Error just wait")
         if socketError == QAbstractSocket.RemoteHostClosedError:
             pass
         else:
@@ -380,13 +220,212 @@ class cardTableWidget(QWidget):
             if not self.clientTimer.isActive():
                 print("The following error occurred: %s." % self.tcpSocket.errorString())
                 self.clientTimer.timeout.connect(self.clientReconnectTimer)
-                self.clientTimer.start(5000)
+                self.clientTimer.start(2000)
+
+    def applyOneState(self, state):
+        # only for single message
+        res = []
+        for i in state:
+            res.append(ast.literal_eval(i))
+
+        try:
+            player_idx, my_card, shifting, nu_shift_cards, on_table_cards, endround, gameOver = int(res[0]), self.convertCardString2Card(res[1]), str(res[2]), int(res[3]), int(res[4]), res[6], res[7]
+        except:
+            print("Could not parse ERRROR")
+            return
+
+        print("apply Board state:", res, self.gotCards)
+
+        #Do not play if card is already deleted or in the mid
+        item = self.findGraphicsCardItem_(my_card)
+        if item is not None:
+            print(item, item.isPlayed)
+        if item is None or item.isPlayed:
+            return
+
+        if "False" in shifting:
+            shifting = False
+        else:
+            shifting = True
+
+        if not shifting:
+            on_table_cards = len(self.midCards)
+
+        if "True" in str(gameOver):
+            self.GameOver = True
+
+        # If cards are dealt again do not apply shifted states again (they still might be contained in board state)
+        if shifting and self.gotCards >=2:
+            return
+        self.playCardClient(item, player_idx, on_table_cards, player_idx, shifting, nu_shift_cards)
+
+    def applyBoardState(self, msg):
+        if len(msg) == 0:
+            return
+        for i in msg:
+            self.applyOneState(i)
 
 
-    def openClient(self, ip):
+    @pyqtSlot(str)
+    def parseClient(self, inMsg):
+        self.nuReceived +=1
+        #self.clientTimer.stop()
+        print("\nReceived::", inMsg)
+
+        name, command, msg, tmp, outMsg ="", "", "", "", ""
+        try:
+            tmp = inMsg.split(";")
+        except Exception as e:
+            print(e)
+            outMsg = name+";"+"Error;"+"Server could not parse Message split fails"
+
+        if len(tmp) == 3:
+            name, command, msg = tmp[0], tmp[1], tmp[2]
+        else:
+            print("Not enough ;")
+            outMsg = name+";"+"Error;"+"Server could not parse Message not enough args found"+str(len(tmp))+" should be 3"
+
+        #### TODO
+        #### Achtung wenn gleiche Nachricht 2 mal kommt soll nichts gemacht werden
+        #### Warte bis timer fertig bevor neuen starten!!!
+
+        if command == "InitClientSuccess" or command =="WaitUntilConnected":
+            self.changePlayerName(self.mode_label,  "Mode: Shift")
+            self.send2Server("GetCards", "Server give me my cards and the game state", once=False)
+        elif command == "GetCardsSuccess":
+            self.gotCards +=1
+            # Wende nur zwei mal an!!!
+            if self.gotCards <=2:
+                try:
+                    ttmp = msg.split("--")
+                    names, typee, cards, deck = ttmp[0], ttmp[1], ttmp[2:6], ttmp[6]
+                except:
+                    print("Could not parse ERRROR")
+                    return
+
+                self.options["names"] = ast.literal_eval(names)
+                self.options["type"]  = ast.literal_eval(typee)
+                self.setNames()
+
+                for i,c in enumerate(cards):
+                    if self.options["names"][i] == self.clientName:
+                        self.clientCards = self.convertCardsArray(c)
+                        self.deal_cards(self.convertCardsArray(c), i, fdown=False)
+                    else:
+                        self.deal_cards(self.convertCardsArray(c), i, fdown=True)
+                self.deckBackSVG = str(ttmp[6])
+
+            self.send2Server("WantPlay", str(self.wantPlay), once=False)
+        elif command  == "WrongCard":
+            self.applyBoardState(ast.literal_eval(msg))
+            if self.dealAgain:
+                self.send2Server("GetCards", str(self.wantPlay), once=False)
+                self.dealAgain = False
+            elif self.GameOver:
+                self.send2Server("GameOver", "game is over", once=False)
+                self.GameOver = False
+            else:
+                ########### random card for testing:
+                # item = None
+                # if len(self.clientCards)>0:
+                #     while item is None:
+                #         number = random.randrange(len(self.clientCards))
+                #         my_card = self.clientCards[number]
+                #         item = self.findGraphicsCardItem_(my_card)
+                #     self.wantPlay = my_card
+                #########
+                self.send2Server("WantPlay", str(self.wantPlay), once=False)
+        elif command =="PlayedCard":
+            self.wantPlay = ""
+            try:
+                ttmp = msg.split("--")
+                player_idx, card, shifting, nu_shift_cards, on_table_cards, endround, gameover = int(ttmp[0]), self.convertCardString2Card(ttmp[1]), ast.literal_eval(ttmp[2]), int(ttmp[3]), int(ttmp[4]), ttmp[6], ttmp[7]
+            except:
+                print("Could not parse ERRROR")
+                return
+
+            #Do not play if card is already deleted or in the mid
+            item = self.findGraphicsCardItem_(card)
+            if item is None or item.isPlayed:
+                print("ERROR CARD NOT FOUND!!!! \n\n")
+                self.send2Server("WantPlay", str(self.wantPlay), once=False)
+                return
+
+            if not shifting:
+                on_table_cards = len(self.midCards)
+
+            try:
+                self.playCardClient(item, player_idx, on_table_cards, player_idx, shifting, nu_shift_cards)
+            except:
+                self.send2Server("WantPlay", str(self.wantPlay), once=False)
+                return
+
+            if self.dealAgain:
+                self.send2Server("GetCards", str(self.wantPlay), once=False)
+                self.dealAgain = False
+            elif "True" in gameover:
+                self.send2Server("GameOver", "game is over", once=False)
+            else:
+                self.send2Server("WantPlay", str(self.wantPlay), once=False)
+        elif command =="GameOver":
+            # do this only once:
+            if not self.dealAgain:
+                self.removeAll()
+                self.dealAgain =  True
+                try:
+                    ttmp = msg.split("--")
+                    offhandCards, rewards, total_rewards = ttmp[0], ttmp[1], ttmp[2]
+                except Exception as e:
+                    print("Could not parse ERRROR", e)
+                    return
+
+                offhandCards = ast.literal_eval(offhandCards)
+                rewards =  ast.literal_eval(rewards)
+                total_rewards =  ast.literal_eval(total_rewards)
+
+                for i in range(len(offhandCards)):
+                    self.showResultClient(i, str(rewards[i]), str(total_rewards[i]), self.convertCardsArray(str(offhandCards[i])))
+
+                print("CLIENT GAME OVERRRRR")
+            self.send2Server("Restart", "Server Please Restart me", once=False)
+        elif command=="Restart":
+            print("Inside client restart and reset now")
+            self.reset_client()
+            time.sleep(3)# wait some time before starting new!
+            self.send2Server("GetCards", "Server give me my cards for the new game", once=False)
+
+    def receivedMsgClient(self):
+        inMsg = str(self.tcpSocket.readAll(), encoding='utf8')
+        if ";Ende" in inMsg:
+            a = (inMsg.split(";Ende"))
+            self.corrString +=a[0]
+
+            self.server_receivedSig.emit(self.corrString)
+            self.corrString = ""
+        else:
+            self.corrString +=inMsg
+
+    def sendServer(self, msg):
+        # wait for answer here: https://stackoverflow.com/questions/23265609/persistent-connection-in-twisted
+        # see also this https://stackoverflow.com/questions/23265609/persistent-connection-in-twisted (send to multiple....)
+        print(">>>Client sends:", msg)
+        msg = msg.encode("utf8")
+        self.tcpSocket.write(msg)
+        self.nuSend +=1
+        self.tcpSocket.waitForBytesWritten()
+
+    def send2Server(self, cmd, msg, once=True, delimiter=";"):
+        msg = self.clientName+delimiter+cmd+delimiter+msg+delimiter+"Ende"
+        if once:
+            self.sendServer(msg)
+        else:
+            # Send after a while to minimize the traffic
+            QTimer.singleShot(100, lambda: self.sendServer(msg))
+
+    def openClient(self):
         self.tcpSocket = QTcpSocket(self)
-        print("I client connect now with:", ip)
-        self.tcpSocket.connectToHost(ip, 8000, QIODevice.ReadWrite)
+        print("I client connect now with:", self.options["open_ip"])
+        self.tcpSocket.connectToHost(self.options["open_ip"], 8000, QIODevice.ReadWrite)
         self.tcpSocket.readyRead.connect(self.receivedMsgClient)
         self.tcpSocket.error.connect(self.displayErrorClient)
 
@@ -394,25 +433,9 @@ class cardTableWidget(QWidget):
         connected = self.tcpSocket.waitForConnected(1000)
         if connected:
             self.clientTimer.stop()
-            self.clientName = self.options["names"][0]
-            self.tcpSocket.write(bytes( self.options["names"][0]+";"+"InitClient;Server please init me with my name;noHash", encoding='ascii'))
+            self.send2Server("InitClient","Server please init me with my name")
         else:
-            print("Not connected, Server not open?, open_ip wrong? Try to reconnect in 5sec")
-
-    def receivedMsgClient(self):
-        instr = QDataStream(self.tcpSocket)
-        instr.setVersion(QDataStream.Qt_5_0)
-        if self.blockSize == 0:
-            if self.tcpSocket.bytesAvailable() < 2:
-                return
-            self.blockSize = instr.readUInt16()
-        if self.tcpSocket.bytesAvailable() < self.blockSize:
-            print("not enought bytes available comming from server", self.tcpSocket.bytesAvailable(), self.blockSize)
-            return
-        # Print response to terminal, we could use it anywhere else we wanted.
-        in_msg = str(instr.readString(), encoding='ascii')
-        self.parseClientMessage(in_msg)
-        self.blockSize = 0
+            print("Not connected, Server not open?, open_ip wrong? Try to reconnect in 2sec")
 
     def is_valid_ipv4(self, ip):
         """Validates IPv4 addresses.
@@ -461,313 +484,26 @@ class cardTableWidget(QWidget):
 #########################SERVER #################################
 #########################SERVER #################################
 #########################SERVER #################################
-    def serverInputCommunication(self):
-        self.clientConnections.append({"conn":self.tcpServer.nextPendingConnection(), "idx": len(self.clientConnections)})
-        self.clientConnections[len(self.clientConnections)-1]["conn"].readyRead.connect(self.receivedMessagesServer)
-
-    def getNuClients(self):
-        j,m = 0,0
-        idx = []
-        for i in self.options["type"]:
-            if "Client" in i:
-                idx.append(j)
-                m +=1
-            j+=1
-        return m, idx
-
-    def getCardIndex(self, card, card_list):
-        for j,c in enumerate(card_list):
-            if c.color == card.color and c.value == card.value:
-                return j
-        return -1
-
-<<<<<<< HEAD
-    def parseCustomMessage(self, idx, msg):
-        if len(msg) == 0: return
-        print(">>>>Server receives",idx, msg)
-        try:
-            tmp = msg.split(";")
-            client_name, command, message = tmp[0], tmp[1], tmp[2]
-        except:
-            print("ERRRORRRR ")
-            return
-        if "WantPlay" in command:
-            card = self.convertCardString2Card(message)
-            print("Active Player is:", self.my_game.active_player)
-            action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
-            if action == -1:
-                self.send_msgServer(idx, "WantPlayNOK;"+str(card)+" does not belong to active player!")
-                return
-            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player) #caution in shifting phase!
-            incolor =self.my_game.getInColor()
-            # Caution in shifting phase all is allowed!
-            print(is_allowed_list_idx, incolor)
-            if action not in is_allowed_list_idx and incolor is not None:
-                self.send_msgServer(idx, "WantPlayNOK;"+"I cannot play"+str(card)+" not allowed!")
-                return
-            # send client requester back that he can play this card.
-            self.send_msgServer(idx, "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)))
-            #send to all other clients that this card was put
-            self.send_msgServer(idx, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), other=True)
-
-            item = self.findGraphicsCardItem(action, self.my_game.active_player)
-            card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            print("Active Player after is:", self.my_game.active_player)
-        elif "ClientPlayed" in command:
-            print("Client Played card play now virtual card etc.")
-            rewards, round_finished = self.playVirtualCard(int(message))
-            if len(self.my_game.players[self.my_game.active_player].hand)==0:
-                self.checkFinished()
-                self.showResult(rewards)
-                return
-            self.checkFinished()
-            print("Active Player after is:", self.my_game.active_player)
-            if "Server" in self.options["online_type"]:
-                self.playUntilClient()
-            else:
-                #5. Play until human:
-                self.playUntilHuman()
-        elif "   " in command:
-            print("hallo")
-        else:
-            print("not understood command:", command)
 
 
-||||||| merged common ancestors
-=======
-    def isContained(self, ttmp):
-        if len(self.serverStorage)>0:
-            if self.serverStorage[len(self.serverStorage)-1] == ttmp:
-                return True
-        return False
 
->>>>>>> d6ab410f32c009f8f5388ed2f6c1f35c60d3fa07
-    def parseServerMessage(self, conn, msg):
-        if len(msg) == 0: return
-        print("\n>>>>Server receives", msg)
-        try:
-            tmp = msg.split(";")
-            client_name, command, message, hash = tmp[0], tmp[1], tmp[2], tmp[3]
-            if not "name" in conn and "InitClient" in command:
-                conn["name"] = client_name
-        except:
-            print("\n\nCAUTION CANNOT PARSE THIS MESSAGE")
-            return
-
-<<<<<<< HEAD
-||||||| merged common ancestors
-        conn["msgs"].append(message)
-
-=======
-
->>>>>>> d6ab410f32c009f8f5388ed2f6c1f35c60d3fa07
-        if not (conn["name"] == client_name):
-            print("wrong name", client_name, conn["name"])
-            return
-
-        # Teste, dass server niemals genau die gleiche nachricht schon zum zweiten mal direkt hinter einander erhaelt
-        ttmp = client_name+";"+command+";"+message
-        if self.isContained(command): return
-        if len(command)>2 and len(message)>1:
-            self.serverStorage.append(command)
-
-        if "WantPlay" in command:
-            card = self.convertCardString2Card(message)
-            if card is None:
-                print("Sry cannot play this card.....")
-                #self.serverReceivedHash = "wronnnggg"
-                return
-
-            print("Active Player is:", self.my_game.active_player)
-            action = self.getCardIndex(card, self.my_game.players[self.my_game.active_player].hand)
-            if action == -1:
-                self.send_msgServer(conn["idx"], "WantPlayNOK;"+str(card)+" does not belong to active player!", secrets.token_hex(nbytes=3))
-                return
-            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player) #caution in shifting phase!
-            incolor =self.my_game.getInColor()
-            # Caution in shifting phase all is allowed!
-            print(is_allowed_list_idx, incolor)
-            if action not in is_allowed_list_idx and incolor is not None:
-                self.send_msgServer(conn["idx"], "WantPlayNOK;"+"I cannot play"+str(card)+" not allowed!", secrets.token_hex(nbytes=3))
-                return
-            # send client requester back that he can play this card.
-            self.send_msgServer(conn["idx"], "PlayCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3))
-            #send to all other clients that this card was put
-            ## TODO
-            #self.send_msgServer(conn["idx"], "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3), other=True)
-
-            item = self.findGraphicsCardItem(action, self.my_game.active_player)
-            card_played = self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            print("Active Player after isssss:", self.my_game.active_player)
-            print("Client Played card play now virtual card etc.")
-            rewards, round_finished = self.playVirtualCard(action)
-            if len(self.my_game.players[self.my_game.active_player].hand)==0:
-                self.checkFinished()
-                self.showResult(rewards)
-                return
-            self.checkFinished()
-            print("Active Player after is:", self.my_game.active_player)
-            if "Server" in self.options["online_type"]:
-                print("INside hereee")
-                print(self.thread)
-                #print(eee)
-                self.playUntilClient()
-            else:
-                #5. Play until human:
-                print("Inside play until human")
-                self.playUntilHuman()
-
-
-        print("End of parseServerMessage", self.thread)
-        self.serverReceivedHash.append(hash)
-        print("End of parseServerMessage", self.thread)
-
-    @pyqtSlot(str,int)
-    def serverStringReceived(self, msg, idx):
-        assert isinstance(msg, str)
-        assert isinstance(idx, int)
-        print("\n\nSignal emitted\n", msg)
-        self.parseCustomMessage(idx, msg)
-
-    def receivedMsgClientttt(self, conn):
-        socket = conn["conn"]
-        print("Check if match:", socket.bytesAvailable(), self.blockSize)
-        incoming = str(socket.readAll(),  encoding='ascii')
-        print("Server rceived:", incoming)
-        if "Ende" in incoming:
-            a = (incoming.split("Ende"))
-            print("Nu Ende in incomming:", len(a))
-            self.corrString +=a[0]
-
-            self.server_receivedSig.emit(self.corrString, conn["idx"])
-
-            #delete self.corr
-            if len(a)>1:
-                self.corrString = a[1]
-            else:
-                self.corrString = ""
-        else:
-            self.corrString +=incoming
-
-    def receivedMessagesServer(self):
-        print("Received message ")
-        for conn in self.clientConnections:
-            if "name" in conn:
-                self.receivedMsgClientttt(conn)
-            else:
-                self.parseServerMessage(conn, str(conn["conn"].readAll(), encoding='ascii'))
-        #check for state all_connected?
-        tmp, _ = self.getNuClients()
-        if len(self.clientConnections) == tmp:
-            self.server_state =  "ALL_CONNECTED"
-            #send signal
-
-    def getConnOfIdx(self, idx):
-        for conn in self.clientConnections:
-            if conn["idx"] == idx:
-                return conn
-        return None
-
-<<<<<<< HEAD
-    def send_msgServer(self, idx, msg, other=False, nu=3):
-||||||| merged common ancestors
-    def send_msgServer(self, idx, msg, other=False):
-=======
-    def checkHash(self, inHash):
-        for i in self.serverReceivedHash:
-            if i == inHash:
-                return True
-        return False
-
-
-    def send_msgServer(self, idx, msg, sendHash, other=False, nu_interval=0.01, alwayse_newHash = False):
-        # Starte Thread der im Hintergrund die Messages schickt
-        start         = datetime.datetime.now()
-        self.currSent = 0
-        for i in range(5):
-            if not (self.checkHash(sendHash)):
-                print(datetime.datetime.now()- start)
-                if alwayse_newHash:
-                    sendHash = secrets.token_hex(nbytes=3)
-                self.thread = threading.Thread(target=self.sendTimedServer, args=(nu_interval*i, idx, msg+";"+sendHash, other,))
-                self.thread.start()
-                QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-                self.thread.join()
-            else:
-                self.thread.join()
-                break
-
-    def send_msgServerOld(self, idx, msg, sendHash, other=False, nu_interval=1000):
-        while (not self.serverReceivedHash in sendHash) and self.currSent <10:
-            # self.sendMsgTimerSer.timeout.connect(lambda: self.sendTimedServer(idx, msg+";"+self.ServerHash, other=other))
-            # self.sendMsgTimerSer.start(1000)
-            self.sendMsgTimerSer.singleShot(10, lambda: self.sendTimedServer(idx, msg+";"+sendHash, other=other))
-            QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-        print("stop nowwwww", msg, self.serverReceivedHash, sendHash)
-        self.sendMsgTimerSer.stop()
-        self.currSent = 0
-
-    def sendTimedServer(self, sleep_time, idx, msg, other=False):
-        time.sleep(sleep_time)
-        print("<<<<Server sends:", idx, msg, self.currSent)
-        self.currSent +=1
->>>>>>> d6ab410f32c009f8f5388ed2f6c1f35c60d3fa07
-        'idx: connection idx player index, idx=-1 send to all conections, if other=True send to all other but to idx'
-        to =""
-        if idx==-1:
-            to = "all"
-        else:
-            conn =self.getConnOfIdx(idx)
-            if conn is None:
-                print("Sry this idx was not found. Current Connections:", self.clientConnections)
-                return
-        block = QByteArray()
-        # QDataStream class provides serialization of binary data to a QIODevice
-        out = QDataStream(block, QIODevice.ReadWrite)
-        # We are using PyQt5 so set the QDataStream version accordingly.
-        out.setVersion(QDataStream.Qt_5_0)
-        out.writeUInt16(0)
-        out.writeString(bytes(msg, encoding='ascii'))
-        out.device().seek(0)
-        out.writeUInt16(block.size() - 2)
-        if to=="all" or other:
-            for connections in self.clientConnections:
-                #actually should wait for emit signal!!!
-                # see here: https://doc.qt.io/archives/4.6/qabstractsocket.html#waitForReadyRead
-                if other:
-                    if not (connections["idx"] == idx):
-                        connections["conn"].waitForReadyRead(100)
-                        connections["conn"].write(block)
-                else:
-                    connections["conn"].waitForReadyRead(100)
-                    connections["conn"].write(block)
-        else:
-            co = conn["conn"]
-            co.waitForReadyRead(100)
-            co.write(block)
+    def start_server(self):
+        import server
         time.sleep(5)
-        # if nu>0
-        #     nu -=1
-        #     self.send_msgServer(idx, "Empty", other=other)
 
     def getIP(self):
         hostname = socket.gethostname()
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip_address = s.getsockname()[0]
-        print(ip_address, hostname, "<<localhost")
         return ip_address, hostname
 
-    def openServer(self):
-        self.tcpServer = QTcpServer(self)
-        PORT = 8000
-        ip_, _ = self.getIP()
-        address = QHostAddress(ip_) # e.g. use your server ip 192.144.178.26
-        if not self.tcpServer.listen(address, PORT):
-            print("cant listen!")
-            self.close()
-            return
-        self.tcpServer.newConnection.connect(self.serverInputCommunication)
+    def findFirstClient(self, list):
+        for j,i in enumerate(list):
+            if "Client" in i:
+                return j
+        return 0
+
 #########################SERVER #################################
 #########################SERVER #################################
 #########################SERVER #################################
@@ -782,26 +518,33 @@ class cardTableWidget(QWidget):
                 self.game_play = pickle.load(f)
             self.automatic_mode()
         else:
-            self.deckBackSVG = self.options["back_CardColor"]
-            if "Server" in self.options["online_type"]:
-                if not "Server" in self.options["type"][0]:
-                    print("Error type at position 0 must be Server in options. type:['Server', 'Client', etc.]", self.options["type"][0])
-                    return
-                self.my_game     = game(self.options)
-                self.openServer()
-                self.runGame()
-            elif "Client" in self.options["online_type"]:
+            print("Online_type:", self.options["online_type"])
+            if "Client" in self.options["online_type"]:
+                self.changePlayerName(self.mode_label,  "Mode: Client")
                 valid_ip = self.is_valid_ipv4(self.options["open_ip"])
                 if len(self.options["names"])>1 or len(self.options["type"])>1 or (not valid_ip) or ("Client" not in self.options["type"]):
                     print("Error use only one unique name in options.  names: ['YourName']")
                     print("Error use only one type in options.         type: ['Client']")
                     print("Error use only IPV4 as open_ip in options.  open_ip: 172.20.80.10")
                     return
-                self.openClient(self.options["open_ip"])
-                QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
+                self.clientName = self.options["names"][0]
+                self.openClient()
+            elif "Server" in self.options["online_type"]:
+                self.changePlayerName(self.mode_label,  "Mode: Server")
+                #1. Open Server in seperate Thread
+                page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
+                print(">>>THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
+                print(">>>LOCAL IP OF THIS PC IN LAN    :", self.getIP())
+                server_thread = threading.Thread(target=self.start_server, )
+                server_thread.start()
+
+                #2. Open Client
+                self.options["online_type"] = "Client"
+                # give it the name of the first found Client
+                self.clientName = self.options["names"][self.findFirstClient(self.options["type"])]
+                self.openClient()
             else:
-                self.my_game     = game(self.options)
-                self.runGame()
+                print("ERROR TODO Mode not online")
 
     def automatic_mode(self):
         print("inside automatic mode")
@@ -818,139 +561,8 @@ class cardTableWidget(QWidget):
             del self.game_play["cards_player_"+str(player)][action]
             self.checkFinished()
 
-    def servertimeout(self):
-        print("Wait for all players to be connected!", self.server_state, self.clientConnections)
-        self.timeouttt = False
-
     def clientReconnectTimer(self):
-        self.openClient(self.options["open_ip"])
-        QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-
-    def runGame(self):
-        # remove all cards which were there from last game.
-        self.removeAll()
-        if "Server" in self.options["online_type"] and self.my_game.nu_games_played<1:
-            # get open ip:
-            page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
-            print("THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
-
-            # send cards to clients, wait for all clients
-            # wait until all players are connected!
-            print("Wait for all players to be connected!", self.server_state, self.clientConnections)
-            while "ALL_CONNECTED" not in self.server_state:
-                if not self.timeouttt:
-                    self.timer.timeout.connect(self.servertimeout)
-                    self.timer.start(5000)
-                    self.timeouttt = True
-                QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-            self.timer.stop()
-            print("All clients are connected now:")
-            print(self.clientConnections, "\n")
-            #update names if all are connected.
-            _, tmp = self.getNuClients()
-            for i, conn in enumerate(self.clientConnections):
-                self.options["names"][tmp[i]] = conn["name"]
-            self.send_msgServer(-1, "BackHand;"+self.deckBackSVG, secrets.token_hex(nbytes=3))
-            print("AFTER SEND MSGS ")
-
-        #3. Deal Cards:
-        print("Deal Cards now: \n")
-        for i in range(len(self.my_game.players)):
-            if "Server" in self.options["online_type"]:
-                if "Server" in self.options["type"][i]:
-                    self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
-                else:
-                    self.deal_cards(self.my_game.players[i].hand, i, fdown=True)
-            else:
-                self.deal_cards(self.my_game.players[i].hand, i, fdown=self.options["faceDown"][i])
-
-        if "Server" in self.options["online_type"]:
-            if self.my_game.nu_games_played<1:
-                self.send_msgServer(-1, "Names;"+str(self.options["names"]), secrets.token_hex(nbytes=3))
-                self.send_msgServer(-1, "Type;"+str(self.options["type"]), secrets.token_hex(nbytes=3))
-
-            # send all cards to all clients:
-            self.send_msgServer(-1, "DeleteCards;"+"  ", secrets.token_hex(nbytes=3))
-            for i in range(len(self.my_game.players)):
-                for conn in self.clientConnections:
-                    if conn["name"] == self.options["names"][i]:
-                        self.send_msgServer(conn["idx"], "InitMyCards;"+str(self.my_game.players[i].hand), secrets.token_hex(nbytes=3))
-                    else:
-                        self.send_msgServer(conn["idx"], "InitOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i), secrets.token_hex(nbytes=3))
-            print(">>>Please play first card as server!")
-
-        # 4. Setup Names:
-        self.setNames()
-        self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
-
-        if "Server" in self.options["online_type"]:
-            self.playUntilClient()
-        else:
-            #5. Play until human:
-            self.playUntilHuman()
-
-
-    def runGameOld(self):
-        # remove all cards which were there from last game.
-        self.removeAll()
-        if "Server" in self.options["online_type"] and self.my_game.nu_games_played<1:
-            # get open ip:
-            page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
-            print("THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
-
-            # send cards to clients, wait for all clients
-            # wait until all players are connected!
-            print("Wait for all players to be connected!", self.server_state, self.clientConnections)
-            while "ALL_CONNECTED" not in self.server_state:
-                if not self.timeouttt:
-                    self.timer.timeout.connect(self.servertimeout)
-                    self.timer.start(5000)
-                    self.timeouttt = True
-                QCoreApplication.instance().processEvents(QEventLoop.WaitForMoreEvents)
-            self.timer.stop()
-            print("All clients are connected now:")
-            print(self.clientConnections, "\n")
-            #update names if all are connected.
-            _, tmp = self.getNuClients()
-            for i, conn in enumerate(self.clientConnections):
-                self.options["names"][tmp[i]] = conn["name"]
-            self.send_msgServer(-1, "BackHand;"+self.deckBackSVG, secrets.token_hex(nbytes=3))
-
-        #3. Deal Cards:
-        print("Deal Cards now: \n")
-        for i in range(len(self.my_game.players)):
-            if "Server" in self.options["online_type"]:
-                if "Server" in self.options["type"][i]:
-                    self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
-                else:
-                    self.deal_cards(self.my_game.players[i].hand, i, fdown=True)
-            else:
-                self.deal_cards(self.my_game.players[i].hand, i, fdown=self.options["faceDown"][i])
-
-        if "Server" in self.options["online_type"]:
-            if self.my_game.nu_games_played<1:
-                self.send_msgServer(-1, "Names;"+str(self.options["names"]), secrets.token_hex(nbytes=3))
-                self.send_msgServer(-1, "Type;"+str(self.options["type"]), secrets.token_hex(nbytes=3))
-
-            # send all cards to all clients:
-            self.send_msgServer(-1, "DeleteCards;"+"  ", secrets.token_hex(nbytes=3))
-            for i in range(len(self.my_game.players)):
-                for conn in self.clientConnections:
-                    if conn["name"] == self.options["names"][i]:
-                        self.send_msgServer(conn["idx"], "InitMyCards;"+str(self.my_game.players[i].hand), secrets.token_hex(nbytes=3))
-                    else:
-                        self.send_msgServer(conn["idx"], "InitOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i), secrets.token_hex(nbytes=3))
-            print(">>>Please play first card as server!")
-
-        # 4. Setup Names:
-        self.setNames()
-        self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
-
-        if "Server" in self.options["online_type"]:
-            self.playUntilClient()
-        else:
-            #5. Play until human:
-            self.playUntilHuman()
+        self.openClient()
 
     def getHighlight(self, playeridx):
         try:
@@ -968,7 +580,6 @@ class cardTableWidget(QWidget):
         self.changePlayerName(self.player4_label,  self.options["names"][3]+" ("+self.options["type"][3]+")", highlight=self.getHighlight(3))
 
     def showResultClient(self, i, reward, total_reward, offhandCards):
-        print("Inside Show Client Result!!!")
         labels1 = [self.card1_label, self.card2_label, self.card3_label, self.card4_label]
         labels2 = [self.play_1_state, self.play_2_state, self.play_3_state, self.play_4_state]
         label1 = labels1[i]
@@ -978,183 +589,102 @@ class cardTableWidget(QWidget):
         self.deal_cards(offhandCards, i)
         self.view.viewport().repaint()
 
-    def showResult(self, rewards):
-        i = 0
-        for f, b in zip([self.card1_label, self.card2_label, self.card3_label, self.card4_label], [self.play_1_state, self.play_2_state, self.play_3_state, self.play_4_state]):
-            self.changePlayerName(f, self.my_game.names_player[i]+" ("+self.my_game.ai_player[i]+")", highlight=0)
-            self.changePlayerName(b,  str(int(rewards["total_rewards"][i]))+" ["+str(int(self.my_game.total_rewards[i]))+"]", highlight=0)
 
-            # print offhand cards:
-            offhand_cards = [item for sublist in  self.my_game.players[i].offhand for item in sublist]
-            self.deal_cards(offhand_cards, i)
-            if "Server" in self.options["online_type"] and len(offhand_cards)>0:
-                self.send_msgServer(-1, "ShowResult;"+str(i)+"--"+str(int(rewards["total_rewards"][i]))+"--"+str(int(self.my_game.total_rewards[i]))+"--"+str(offhand_cards), secrets.token_hex(nbytes=3))
-            i +=1
-        self.view.viewport().repaint()
-        time.sleep(self.options["sleepTime"]*50)
-        self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1))
-        self.my_game.current_round = 0
-        if self.options["nu_games"] > self.my_game.nu_games_played+1:
-            self.nextRound_clicked()
-
-    def to_numpy(self, tensor):
-        # used in test_onnx
-        return tensor.detach().cpu().numpy()
-
-    def rl_onnx(self, state_240, state_303, path):
-        '''Input:
-        x:      180x1 list binary values
-        path    *.onnx (with correct model)'''
-        ort_session = onnxruntime.InferenceSession(path)
-        if ort_session.get_inputs()[0].shape[0] == 240:
-            ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(state_240, dtype=np.float32)}
-        elif ort_session.get_inputs()[0].shape[0]==303:
-            ort_inputs  = {ort_session.get_inputs()[0].name: np.asarray(state_303, dtype=np.float32)}
+    def getNextPlayer(self, currPlayer):
+        if currPlayer < len(self.options["names"])-1:
+            return currPlayer+1
         else:
-            print("Error wrong inputs!")
-        ort_outs    = ort_session.run(None, ort_inputs)
-        max_value = (np.amax(ort_outs))
-        result = np.where(ort_outs == np.amax(ort_outs))
-        return result[1][0]
+            return 0
 
-    def test_onnx(self, x, path):
-        #print("path:", path)
-        ort_session = onnxruntime.InferenceSession(path)
+    def getPreviousPlay(self, input_number, nuPlayers=4):
+        if input_number == 0:
+            prev_player = nuPlayers-1
+        else:
+            prev_player = input_number -1
+        return prev_player
 
-        # compute ONNX Runtime output prediction
-        #print(type(x[0]), x[0])
-        #print(type(np.asarray(x[0])), np.asarray(x[0]))
-        #print("I will now test your model!")
-        ort_inputs = {ort_session.get_inputs()[0].name: np.asarray(x[0], dtype=np.float32)}
-        ort_outs = ort_session.run(None, ort_inputs)
-        #print(ort_outs)
-        max_value = (np.amax(ort_outs))
-        #print(max_value)
-        result = np.where(ort_outs == np.amax(ort_outs))
-        #print(result)
+    def getInColorOfCards(self, cards):
+        # returns the leading color of the on_table_cards
+        # if only joker are played None is returned
+        for i, card in enumerate(cards):
+            if card is not None:
+                if card.value <15:
+                    return card.color
+        return None
 
-        #TODO sort after indices?!
-        return result[1][0]
+    def getWinnerForCards(self, cards, active_player, nu_players=4):
+        # Not this function is used at the client side!
+        highest_value    = 0
+        winning_card     = cards[0]
+        incolor          = self.getInColorOfCards(cards)
+        on_table_win_idx = 0
+        if  incolor is not None:
+            for i, card in enumerate(cards):
+                # Note 15 is a Jocker
+                if card is not None and ( card.value > highest_value and card.color == incolor and card.value<15):
+                    highest_value = card.value
+                    winning_card = card
+                    on_table_win_idx = i
 
-    def selectAction(self):
-        # action is a hand card index or???
-        # Version 2.0 shifting active do not use nn, mcts anymore!
-        current_player = self.my_game.active_player
-        if "RL"  in self.my_game.ai_player[current_player]:
-            state_240 = self.my_game.getState_240().flatten()
-            state_303 = self.my_game.getState_303().flatten() # used in rl_path11_op
-            try:
-                rl_type = int(''.join(x for x in self.my_game.ai_player[current_player] if x.isdigit()))
-            except:
-                print("Error did not find rl_type set it to 1")
-                rl_type = 1
-            action = self.rl_onnx(state_240, state_303, "data/"+self.options["onnx_rl_path"][rl_type]+".onnx")
-            card   = self.my_game.players[current_player].getIndexOfCard(action)
-            action = self.my_game.players[current_player].specificIndexHand(card)
-            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
-            incolor =self.my_game.getInColor()
-            if action not in is_allowed_list_idx and incolor is not None:
-                print("RL: ACTION NOT ALLOWED!", card)
-                print("I play random possible option instead")
-                action = self.my_game.getRandomOption_()
-        else:# "RANDOM":
-            if self.my_game.shifting_phase:
-                action = self.my_game.getRandomCards()[0]
-            else:
-                action = self.my_game.getRandomOption_()
-        return action
+        player_win_idx = active_player
+        for i in range(nu_players-on_table_win_idx-1):
+            player_win_idx = self.getPreviousPlay(player_win_idx, nuPlayers=nu_players)
+        return winning_card, on_table_win_idx, player_win_idx
 
-    def playVirtualCard(self, action):
-        current_player = deepcopy(self.my_game.active_player)
-        if self.options["save_game_play"] and len(self.my_game.played_cards) == 0:
-            self.game_play = {}
-            self.game_play["moves"] = []
-            for i, player in enumerate(self.my_game.players):
-                self.game_play["cards_player_"+str(i)] = deepcopy(player.hand)
-        rewards, round_finished, gameOver = self.my_game.step_idx_with_shift(action)
-        if round_finished and "Server" in self.options["online_type"] and not self.my_game.shifting_phase:
-            self.send_msgServer(-1, "DeleteMid;  ", secrets.token_hex(nbytes=3))
-        if self.options["save_game_play"]:
-            self.game_play["moves"].append([current_player, action])
-            if len(self.my_game.played_cards) == 60:
-                with open(self.options["game_play_path"], 'wb') as f:
-                    pickle.dump(self.game_play, f)
-        return rewards, round_finished
-
-    def playUntilClient(self):
-        print("playUnitlClient:", self.my_game.ai_player[self.my_game.active_player], self.my_game.ai_player)
-        while (not "Client" in self.my_game.ai_player[self.my_game.active_player]) and (not "Server" in self.my_game.ai_player[self.my_game.active_player]):
-            action = self.selectAction()
-            item = self.findGraphicsCardItem(action, self.my_game.active_player)
-            self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            if "Server" in self.options["online_type"]:
-                self.send_msgServer(-1, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(item.card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3))
-            print("after put card")
-            rewards, round_finished = self.playVirtualCard(action)
-            print("after play Virtual card")
-            if len(self.my_game.players[self.my_game.active_player].hand)==0:
-                self.checkFinished()
-                self.showResult(rewards)
-                print("finished.....")
-                return
-            self.setNames()
-            self.checkFinished()
-            print("checkfinished  active Player:::",  self.my_game.ai_player[self.my_game.active_player])
-            self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1)+" Round: "+str(self.my_game.current_round+1))
-        if "Client" in self.my_game.ai_player[self.my_game.active_player]:
-            print("Now its a clients move!")
-            self.send_msgServer(0, "WaitForCard;"+"I wait for your card now to be played (for 10 secs)", secrets.token_hex(nbytes=3), nu_interval=2, alwayse_newHash=True)
-        print("End of PlayUntil Client")
-
-    def playUntilHuman(self):
-        print("inside playUntil Human")
-        while not "HUMAN" in self.my_game.ai_player[self.my_game.active_player]:
-            action = self.selectAction()
-            item = self.findGraphicsCardItem(action, self.my_game.active_player)
-            self.playCard(item, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            rewards, round_finished = self.playVirtualCard(action)
-            if len(self.my_game.players[self.my_game.active_player].hand)==0:
-                self.checkFinished()
-                self.showResult(rewards)
-                return
-            self.setNames()
-            self.checkFinished()
-            self.changePlayerName(self.game_indicator,  "Game: "+str(self.my_game.nu_games_played+1)+" Round: "+str(self.my_game.current_round+1))
 
     def playCardClient(self, graphic_card_item, current_player, label_idx, player_name, shifting, shifted_cards):
-        #if graphic_card_item.player == current_player:
-            self.setNames()
-            if shifting:
-                card_label        =  self.card_label_l[graphic_card_item.player]
-                self.changePlayerName(card_label, self.options["names"][graphic_card_item.player], highlight=0)
-                self.view.viewport().repaint()
-                shift_round = int(shifted_cards/4)
-                graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20+shift_round*50)
-            else:
-                card_label        =  self.card_label_l[label_idx]
-                self.changePlayerName(card_label, player_name, highlight=0)
-                self.view.viewport().repaint()
-                graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
-                graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20)
-            self.midCards.append(graphic_card_item)
+        print( graphic_card_item, current_player, label_idx, player_name, shifting, shifted_cards)
+        self.setNames()
+        if shifting:
+            card_label        =  self.card_label_l[graphic_card_item.player]
+            self.changePlayerName(card_label, self.options["names"][graphic_card_item.player], highlight=0)
             self.view.viewport().repaint()
-            return 1 # card played!
-        # else:
-        #     print("ERROR I cannot play card", graphic_card_item, "it belongs player", graphic_card_item.player, "current player is", current_player)
-        #     return 0
+            shift_round = int(shifted_cards/4)
+            graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20+shift_round*50)
+        else:
+            card_label        =  self.card_label_l[label_idx]
+            self.changePlayerName(card_label,  self.options["names"][graphic_card_item.player], highlight=0)
+            self.view.viewport().repaint()
+            graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
+            graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20)
+        self.midCards.append(graphic_card_item)
+        self.view.viewport().repaint()
+        graphic_card_item.isPlayed = True
 
-    def playCard(self, graphic_card_item, current_player, label_idx, player_name):
-        try:
-            if graphic_card_item.player == current_player:
-                graphic_card_item = self.getGraphicCard(label_idx, player_name, graphic_card_item)
-                self.midCards.append(graphic_card_item)
-                self.view.viewport().repaint()
-                return 1 # card played!
-            else:
-                print("ERROR I cannot play card", graphic_card_item, "it belongs player", graphic_card_item.player, "current player is", current_player)
-                return 0
-        except Exception as ee:
-            print(ee)
+        if len(self.midCards) == 8:
+            # remove all Client Cards (are dealt again!)
+            print("Remove all cards now")
+            self.removeAll()
+            self.removeMidNames()
+            self.midCards = []
+            self.dealAgain = True
+            self.changePlayerName(self.mode_label,  "Mode: Play")
+        if len(self.midCards) == 4 and shifted_cards>10:
+            print("Remove Mid Cards now")
+            ttmp = self.midCards
+            time.sleep(1)
+            for i in self.midCards:
+                self.removeCard(i)
+            self.midCards = []
+            self.removeMidNames()
+            # TODO mark next player (may set trick winner etc.)
+            lll = []
+            for i in ttmp:
+                lll.append(i.card)
+            winning_card, on_table_win_idx, player_win_idx = self.getWinnerForCards(lll, int(current_player), nu_players=4)
+            self.changePlayerName(self.card_label_pla[player_win_idx], self.options["names"][player_win_idx], highlight=1)
+            self.changePlayerName(self.game_indicator,  "Game: "+str(self.games_played)+" Round: "+str(self.rounds_played))
+            self.rounds_played +=1
+            self.view.viewport().repaint()
+        else:
+            # mark next player:
+            self.changePlayerName(self.card_label_pla[self.getNextPlayer(current_player)], self.options["names"][self.getNextPlayer(current_player)], highlight=1)
+            self.view.viewport().repaint()
+
+        # TODO Game indicator round etc.
+
+        return 1 # card played!
+
 
     def getGraphicCard(self, label_idx, player_name, graphic_card_item):
         self.setNames()
@@ -1179,8 +709,9 @@ class cardTableWidget(QWidget):
             try:
                 if (i.card == my_card) or ((i.card.value==my_card.value) and (i.card.color == my_card.color)):
                     return i
-            except Exception as e:
-                print(e, my_card, i.card)
+            except:
+                pass
+        return None
 
     def findGraphicsCardItem(self, action_idx, player_idx):
         try:
@@ -1197,39 +728,6 @@ class cardTableWidget(QWidget):
         self.card2_label.setPlainText("")
         self.card3_label.setPlainText("")
         self.card4_label.setPlainText("")
-
-    def checkFinished(self):
-        if self.my_game.shifting_phase:
-            return
-        if len(self.midCards)==8:
-            # deal cards again (with hand cards of shifting phase)
-            self.removeAll()
-            for i in range(len(self.my_game.players)):
-                if "Server" in self.options["online_type"]:
-                    if "Server" in self.options["type"][i]:
-                        self.deal_cards(self.my_game.players[i].hand, i, fdown=False)
-                    else:
-                        self.deal_cards(self.my_game.players[i].hand, i, fdown=True)
-                else:
-                    self.deal_cards(self.my_game.players[i].hand, i, fdown=self.options["faceDown"][i])
-            self.midCards = []
-
-            if "Server" in self.options["online_type"]:
-                # send dealt cards to clients
-                self.send_msgServer(-1, "DeleteCards;"+"   ", secrets.token_hex(nbytes=3))
-                for i in range(len(self.my_game.players)):
-                    for conn in self.clientConnections:
-                        if conn["name"] == self.options["names"][i]:
-                            self.send_msgServer(conn["idx"], "ShiftMyCards;"+str(self.my_game.players[i].hand), secrets.token_hex(nbytes=3))
-                        else:
-                            self.send_msgServer(conn["idx"], "ShiftOtherCards;"+str(self.my_game.players[i].hand)+"--"+str(i), secrets.token_hex(nbytes=3))
-
-        if len(self.midCards)>=4:
-            time.sleep(self.options["sleepTime"])
-            for i in self.midCards:
-                self.removeCard(i)
-            self.midCards = []
-            self.removeMidNames()
 
     def addPlayerLabel(self, x_pos, y_pos, name, highlight=0, font=QFont.Bold):
         item = self.scene.addText(name, QFont('Arial Black', 11, font))
@@ -1253,56 +751,29 @@ class cardTableWidget(QWidget):
             itemAt = self.view.itemAt(p)
             if isinstance(itemAt, CardGraphicsItem):
                 self.cardPressed(itemAt)
-        except ValueError:
-            print("This is not your card!!!")
         except Exception as e:
             print(e)
 
+    def checkCard(self, cardStr):
+        for i in self.clientCards:
+            if str(cardStr) in str(i):
+                return True
+        return False
+
     def cardPressed(self, card):
         if "Client" in self.options["online_type"]:
-            # let the folowing line to get exception!
-            self.clientCards.index(card.card)
-            self.ClientCardMsg = str(card.card)
+            # check if it is your card!
+            if (self.checkCard(card.card)):
+                self.wantPlay = str(card.card)
+            else:
+                print(self.clientName+" This is not your card!")
+            if self.gotCards<=1:
+                self.changePlayerName(self.mode_label,  "Mode: Shift "+str(self.wantPlay).replace("of",""))
+            else:
+                self.changePlayerName(self.mode_label,  "Mode: Play "+str(self.wantPlay).replace("of",""))
         else:
-            if "Client" in self.my_game.ai_player[self.my_game.active_player]:
-                print("We wait for client", self.my_game.players[self.my_game.active_player], "currently.... you as Server cannot play his card!")
-                return
-            try:
-                action = (self.my_game.players[self.my_game.active_player].hand.index(card.card))
-            except:
-                print("Cannot get action. Card does not belong to this player!")
-                return
-            is_allowed_list_idx = self.my_game.getValidOptions(self.my_game.active_player)
-            incolor =self.my_game.getInColor()
-            print(is_allowed_list_idx, incolor)
-            if action not in is_allowed_list_idx and incolor is not None:
-                print("I cannot play", card, " not allowed!")
-                return
-            card_played = self.playCard(card, self.my_game.active_player, len(self.my_game.on_table_cards), self.my_game.names_player[self.my_game.active_player])
-            if "Server" in self.options["online_type"]:
-                print("Before Card Pressed")
-                self.send_msgServer(-1, "PutCard;"+self.options["names"][self.my_game.active_player]+","+str(card.card)+","+str(self.my_game.shifting_phase)+","+str(self.my_game.shifted_cards)+","+str(action)+","+str(self.my_game.active_player)+","+str(len(self.my_game.on_table_cards)), secrets.token_hex(nbytes=3))
-            if card_played:
-                rewards, round_finished = self.playVirtualCard(action)
-                print(rewards, round_finished)
-                if len(self.my_game.players[self.my_game.active_player].hand)==0:
-                    self.checkFinished()
-                    self.showResult(rewards)
-                    return
-                self.checkFinished()
-                if "Server" in self.options["online_type"]:
-                    print("Before card presssed")
-                    self.playUntilClient()
-                else:
-                    #5. Play until human:
-                    self.playUntilHuman()
-
-
-    def getCenterPoint(self)        :
-        """ finds screen center point """
-        rect = self.view.geometry()
-        return QPointF(rect.width()/2,rect.height()/2)
-
+            print("other not allowed currently!!!")
+            print(eeee)
 
     def setBackgroundColor(self, color):
         """ add background color """
@@ -1321,7 +792,7 @@ class cardTableWidget(QWidget):
         return fn
 
 
-    def addCard(self, card, player=0, faceDown=False):
+    def addCard(self, my_card, player=0, faceDown=False):
         """ adds CardGraphicsItem graphics to board.
         also updates the total cards list
         """
@@ -1329,11 +800,11 @@ class cardTableWidget(QWidget):
         if faceDown:
             svgFile = self.cardSvgFile(self.deckBackSVG)
         else:
-            svgFile = self.cardSvgFile(str(card.color)+str(card.value))
+            svgFile = self.cardSvgFile(str(my_card.color)+str(my_card.value))
 
         # create CardGraphicsItem instance
         ind = len(self.getCardsList()) + 1
-        tmp = CardGraphicsItem(card, ind, svgFile, player, faceDown)
+        tmp = CardGraphicsItem(my_card, ind, svgFile, player, faceDown)
         tmp.setScale(self.defScale)
         tmp.setZValue(ind) # set ZValue as index (last in is up)
 #        self.cardsGraphItems.append(tmp)
@@ -1376,7 +847,7 @@ class cardTableWidget(QWidget):
             svgFile = self.cardSvgFile(nameToAdd)
 
         ind = int(zValueTmp)
-        tmp = CardGraphicsItem(card, ind, svgFile, player, faceDown)
+        tmp = CardGraphicsItem(card(graphicsCardElement.card.color, graphicsCardElement.card.value), ind, svgFile, player, faceDown)
         tmp.setScale(self.defScale)
         tmp.setZValue(ind) # set ZValue as index (last in is up)
 

@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import math
 
 # Author Markus Lamprecht (www.simact.de) 08.12.2019
 # A card game named Witches:
@@ -356,6 +355,14 @@ class game(object):
     def init_Random_TestGame(self, ai_player=["RANDOM", "RL", "RANDOM", "RANDOM"]):
         self.ai_player         = ai_player
 
+    def validMove(self, card):
+        current_player    =  self.active_player
+        valid_options_idx = self.getValidOptions(current_player)
+        tmp               = self.players[current_player].specificIndexHand(card)
+        if tmp in valid_options_idx:
+            return True
+        return False
+
     def play_ai_move(self, ai_card_idx, print_=False):
         'card idx from 0...60'
         current_player    =  self.active_player
@@ -424,6 +431,7 @@ class game(object):
                 if card.value <15:
                     return card.color
         return None
+
 
     def evaluateWinner(self):
         #uses on_table_cards to evaluate the winner of one round
@@ -512,15 +520,6 @@ class game(object):
         elif card.color =="Y":
             result_idx = 15*3+card.value-1
         return result_idx
-
-    def convertAvailableActions(self, availAcs):
-        #convert from (1,0,0,1,1...) to (0, -math.inf, -math.inf, 0,0...) etc
-        for j, i in enumerate(availAcs):
-            if i == 1:
-                availAcs[j]=0
-            if i == 0:
-                availAcs[j]=-math.inf
-        return np.asarray(availAcs)
 
     def getState_240(self):
         #    return self.playersGo, self.neuralNetworkInputs[self.playersGo].reshape(1,412), convertAvailableActions(self.returnAvailableActions()).reshape(1,1695)
