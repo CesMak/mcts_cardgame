@@ -1,4 +1,3 @@
-import sys
 import os
 from PyQt5.QtGui  import QFont, QPainter, QColor, QBrush, QPen
 from PyQt5.QtCore import QDataStream, QIODevice, QByteArray, QCoreApplication, QEventLoop, pyqtSignal, pyqtSlot, Qt, QRectF, QPointF, QTimer, QPoint
@@ -10,12 +9,9 @@ import easygui
 import json
 from prettyjson import prettyjson
 
-# Building an exe use onnx
-import onnxruntime
 import numpy as np
 
 import threading
-import pickle
 
 # For server / client:
 import socket # required in get IP
@@ -326,13 +322,13 @@ class cardTableWidget(QWidget):
                 self.GameOver = False
             else:
                 ########### random card for testing:
-                item = None
-                if len(self.clientCards)>0:
-                    while item is None:
-                        number = random.randrange(len(self.clientCards))
-                        my_card = self.clientCards[number]
-                        item = self.findGraphicsCardItem_(my_card)
-                    self.wantPlay = my_card
+                # item = None
+                # if len(self.clientCards)>0:
+                #     while item is None:
+                #         number = random.randrange(len(self.clientCards))
+                #         my_card = self.clientCards[number]
+                #         item = self.findGraphicsCardItem_(my_card)
+                #     self.wantPlay = my_card
                 #########
                 self.send2Server("WantPlay", str(self.wantPlay), once=False)
         elif command =="PlayedCard":
@@ -860,7 +856,7 @@ class cardTableWidget(QWidget):
 
 def main():
     # not used if gui.py is started!
-    app = QApplication(sys.argv)
+    app = QApplication()
     form = cardTableWidget()
     form.show()
     app.exec_()
