@@ -1,4 +1,4 @@
-<img src="/data/imgs/rl_players.png" width="200">
+<img src="/data/imgs/rl_players.png" width="500">
 
 To play a card as HUMAN **double click** the card.
 
