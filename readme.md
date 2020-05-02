@@ -1,11 +1,11 @@
-![mcts_witches](data/imgs/rl_players.png)
+<img src="/data/imgs/rl_players.png" width="200">
 
 To play a card as HUMAN **double click** the card.
 
 # Windows EXE Versions
-* Download [witches_ai_0.0.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
-* MultiPlayer [witches_ai_0.1.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
-* **Most recent** MultiPlayer [witches_ai_0.2.zip](TODO)
+* Download [witches_0.1.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
+* MultiPlayer [witches_0.2.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
+* **Most recent** MultiPlayer [witches_0.3.zip](https://drive.google.com/open?id=1KOv3hxV2_3O0YHzcyxPl_z-BRyG4bPwe)
 
 # Linux
 Commited Versions:
@@ -48,7 +48,11 @@ This are example options for the Linux Version (not online one) see also **gui_o
 # Instructions online Version (Windows)
 Go to the **online** folder and see the option files.
 
-TODO see video for hints
+0. Download and extract [witches_0.3.zip](https://drive.google.com/open?id=1KOv3hxV2_3O0YHzcyxPl_z-BRyG4bPwe)
+1. Go [here](http://checkip.dyndns.org/) note your open IP.
+2. [Allow Portforwarding](https://github.com/CesMak/jatter/blob/master/port_freigabe.png) (Port 8000, TCP, IPV4) in your router (e.g. fritzbox).
+3. Open the start_server.exe click options and insert the noted open_ip.
+4. Open the start_client.exe click options and insert the noted open_ip.
 
 # Player Types
   * RANDOM: plays a random possible card
@@ -81,6 +85,7 @@ TODO see video for hints
 * If only Jokers are played the first one wins this round.
 * Note: Number 15 is a Joker (in the code)
 * Buy the real-card game e.g. here: [buy-witches](https://www.amazon.de/Unbekannt-4990-AMIGO-Witches/dp/B00J5Z7APO)
+* [German rules](https://www.amigo-spiele.de/spiel/witches#1441873869588-cfaee8f1-36b0)
 
 # Training an AI
 ## Start with MCTS (similar to minimax)
