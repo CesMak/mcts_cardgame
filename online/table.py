@@ -326,13 +326,13 @@ class cardTableWidget(QWidget):
                 self.GameOver = False
             else:
                 ########### random card for testing:
-                # item = None
-                # if len(self.clientCards)>0:
-                #     while item is None:
-                #         number = random.randrange(len(self.clientCards))
-                #         my_card = self.clientCards[number]
-                #         item = self.findGraphicsCardItem_(my_card)
-                #     self.wantPlay = my_card
+                item = None
+                if len(self.clientCards)>0:
+                    while item is None:
+                        number = random.randrange(len(self.clientCards))
+                        my_card = self.clientCards[number]
+                        item = self.findGraphicsCardItem_(my_card)
+                    self.wantPlay = my_card
                 #########
                 self.send2Server("WantPlay", str(self.wantPlay), once=False)
         elif command =="PlayedCard":
@@ -513,53 +513,33 @@ class cardTableWidget(QWidget):
             self.options = json.load(json_file)
 
         #2. Create Game:
-        if self.options["automatic_mode"]:
-            with open(self.options["game_play_path"], 'rb') as f:
-                self.game_play = pickle.load(f)
-            self.automatic_mode()
+        print("Online_type:", self.options["online_type"])
+        if "Client" in self.options["online_type"]:
+            self.changePlayerName(self.mode_label,  "Mode: Client")
+            valid_ip = self.is_valid_ipv4(self.options["open_ip"])
+            if len(self.options["names"])>1 or len(self.options["type"])>1 or (not valid_ip) or ("Client" not in self.options["type"]):
+                print("Error use only one unique name in options.  names: ['YourName']")
+                print("Error use only one type in options.         type: ['Client']")
+                print("Error use only IPV4 as open_ip in options.  open_ip: 172.20.80.10")
+                return
+            self.clientName = self.options["names"][0]
+            self.openClient()
+        elif "Server" in self.options["online_type"]:
+            self.changePlayerName(self.mode_label,  "Mode: Server")
+            #1. Open Server in seperate Thread
+            page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
+            print(">>>THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
+            print(">>>LOCAL IP OF THIS PC IN LAN    :", self.getIP())
+            server_thread = threading.Thread(target=self.start_server, )
+            server_thread.start()
+
+            #2. Open Client
+            self.options["online_type"] = "Client"
+            # give it the name of the first found Client
+            self.clientName = self.options["names"][self.findFirstClient(self.options["type"])]
+            self.openClient()
         else:
-            print("Online_type:", self.options["online_type"])
-            if "Client" in self.options["online_type"]:
-                self.changePlayerName(self.mode_label,  "Mode: Client")
-                valid_ip = self.is_valid_ipv4(self.options["open_ip"])
-                if len(self.options["names"])>1 or len(self.options["type"])>1 or (not valid_ip) or ("Client" not in self.options["type"]):
-                    print("Error use only one unique name in options.  names: ['YourName']")
-                    print("Error use only one type in options.         type: ['Client']")
-                    print("Error use only IPV4 as open_ip in options.  open_ip: 172.20.80.10")
-                    return
-                self.clientName = self.options["names"][0]
-                self.openClient()
-            elif "Server" in self.options["online_type"]:
-                self.changePlayerName(self.mode_label,  "Mode: Server")
-                #1. Open Server in seperate Thread
-                page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
-                print(">>>THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
-                print(">>>LOCAL IP OF THIS PC IN LAN    :", self.getIP())
-                server_thread = threading.Thread(target=self.start_server, )
-                server_thread.start()
-
-                #2. Open Client
-                self.options["online_type"] = "Client"
-                # give it the name of the first found Client
-                self.clientName = self.options["names"][self.findFirstClient(self.options["type"])]
-                self.openClient()
-            else:
-                print("ERROR TODO Mode not online")
-
-    def automatic_mode(self):
-        print("inside automatic mode")
-        for i in range(4):
-            self.deal_cards(self.game_play["cards_player_"+str(i)], i, fdown=False)
-        j = 0
-        for player, action  in self.game_play["moves"]:
-            if (j==4):
-                j=0
-            active_player_cards = self.game_play["cards_player_"+str(player)]
-            item = self.findGraphicsCardItem_(active_player_cards[action])
-            self.playCard(item, player, j, self.options["names"][player])
-            j +=1
-            del self.game_play["cards_player_"+str(player)][action]
-            self.checkFinished()
+            print("ERROR TODO Mode not online")
 
     def clientReconnectTimer(self):
         self.openClient()
