@@ -1,1 +1,1 @@
-{"names": ["Hans", "Tim", "Frank", "Lea"], "type": ["RL1", "Client", "Client", "RL0"], "back_CardColor": "back_3", "online_type": "Server", "open_ip": "87.163.34.100", "sleepTime": 0.2, "nu_games": 5, "onnx_rl_path": ["rl_path12_further", "rl_path11_op", "rl_path5", "rl_path14_multi"]}
+{"names": ["Markus", "Tim", "Frank", "Matti"], "type": ["RL1", "Client", "RL3", "RL3"], "back_CardColor": "back_3", "online_type": "Server", "open_ip": "91.58.132.169", "sleepTime": 2, "nu_games": 5, "onnx_rl_path": ["rl_path12_further", "rl_path11_op", "rl_path5", "rl_path14_multi"]}

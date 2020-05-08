@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
 def create_widget():
     app    = QApplication(sys.argv)
     widget = MainWindow()
-    widget.setWindowTitle("Wichtes AI - developed by Markus Lamprecht @2020")
+    widget.setWindowTitle("Witches 0.4 - developed by Markus Lamprecht @2020")
     widget.setWindowIcon(QIcon('../cards/icon.png'))
     widget.show()
     sys.exit(app.exec_()) # blocks whole programm!

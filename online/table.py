@@ -208,7 +208,7 @@ class cardTableWidget(QWidget):
         self.tcpSocket.write(bytes( str(msg), encoding='ascii'))
 
     def displayErrorClient(self, socketError):
-        self.changePlayerName(self.mode_label,  "Error just wait")
+        self.changePlayerName(self.mode_label,  "Wait for server your ip:  "+str( self.options["open_ip"]))
         if socketError == QAbstractSocket.RemoteHostClosedError:
             pass
         else:
@@ -234,8 +234,6 @@ class cardTableWidget(QWidget):
 
         #Do not play if card is already deleted or in the mid
         item = self.findGraphicsCardItem_(my_card)
-        if item is not None:
-            print(item, item.isPlayed)
         if item is None or item.isPlayed:
             return
 
@@ -286,7 +284,7 @@ class cardTableWidget(QWidget):
         #### Warte bis timer fertig bevor neuen starten!!!
 
         if command == "InitClientSuccess" or command =="WaitUntilConnected":
-            self.changePlayerName(self.mode_label,  "Mode: Shift")
+            self.changePlayerName(self.mode_label,  "Mode: Shift, WAIT FOR OTHERS")
             self.send2Server("GetCards", "Server give me my cards and the game state", once=False)
         elif command == "GetCardsSuccess":
             self.gotCards +=1
@@ -387,7 +385,8 @@ class cardTableWidget(QWidget):
         elif command=="Restart":
             print("Inside client restart and reset now")
             self.reset_client()
-            time.sleep(3)# wait some time before starting new!
+            #about to restart.....
+            time.sleep(self.options["sleepTime"]*4)# wait some time before starting new!
             self.send2Server("GetCards", "Server give me my cards for the new game", once=False)
 
     def receivedMsgClient(self):
@@ -421,6 +420,7 @@ class cardTableWidget(QWidget):
     def openClient(self):
         self.tcpSocket = QTcpSocket(self)
         print("I client connect now with:", self.options["open_ip"])
+        self.changePlayerName(self.mode_label,  "Client Connect with: "+str( self.options["open_ip"]))
         self.tcpSocket.connectToHost(self.options["open_ip"], 8000, QIODevice.ReadWrite)
         self.tcpSocket.readyRead.connect(self.receivedMsgClient)
         self.tcpSocket.error.connect(self.displayErrorClient)
@@ -485,7 +485,6 @@ class cardTableWidget(QWidget):
 
     def start_server(self):
         import server
-        time.sleep(5)
 
     def getIP(self):
         hostname = socket.gethostname()
@@ -638,7 +637,7 @@ class cardTableWidget(QWidget):
         if len(self.midCards) == 4 and shifted_cards>10:
             print("Remove Mid Cards now")
             ttmp = self.midCards
-            time.sleep(1)
+            time.sleep(self.options["sleepTime"])
             for i in self.midCards:
                 self.removeCard(i)
             self.midCards = []
@@ -668,14 +667,12 @@ class cardTableWidget(QWidget):
             card_label        =  self.card_label_l[self.my_game.active_player]
             self.changePlayerName(card_label, player_name, highlight=0)
             self.view.viewport().repaint()
-            time.sleep(self.options["sleepTime"])
             shift_round = int(self.my_game.shifted_cards/self.my_game.nu_players)
             graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20+shift_round*50)
         else:
             card_label        =  self.card_label_l[label_idx]
             self.changePlayerName(card_label, player_name, highlight=0)
             self.view.viewport().repaint()
-            time.sleep(self.options["sleepTime"])
             graphic_card_item = self.changeCard(graphic_card_item, faceDown=False)
             graphic_card_item.setPos(card_label.pos().x(), card_label.pos().y()+20)
         return graphic_card_item
@@ -719,7 +716,7 @@ class cardTableWidget(QWidget):
         else:
             text_item.setDefaultTextColor(Qt.black)
 
-    def mouseDoubleClickEvent(self, event):
+    def mousePressEvent(self, event):
         try:
             # check if item is a CardGraphicsItem
             p = event.pos()
@@ -736,13 +733,23 @@ class cardTableWidget(QWidget):
                 return True
         return False
 
+
     def cardPressed(self, card):
+        #remove these lines if Problems.... core dumped occurs...
+        for i in self.clientCards:
+            item = self.findGraphicsCardItem_(i)
+            if item is not None and not item.isPlayed:
+                item.setScale (self.defScale)
+
+        card.setScale (self.defScale+0.08)
+
         if "Client" in self.options["online_type"]:
             # check if it is your card!
             if (self.checkCard(card.card)):
                 self.wantPlay = str(card.card)
             else:
                 print(self.clientName+" This is not your card!")
+                self.changePlayerName(self.mode_label,  "Not your card!")
             if self.gotCards<=1:
                 self.changePlayerName(self.mode_label,  "Mode: Shift "+str(self.wantPlay).replace("of",""))
             else:

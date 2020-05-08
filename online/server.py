@@ -41,8 +41,11 @@ class ServerProtocol(protocol.Protocol):
             outMsg = name+";"+"Error;"+"Server could not parse Message not enough args found"+str(len(tmp))+" should be 4"
 
         if "InitClient" in command and self.factory.serverState =="INIT":
-            self.factory.connectedPlayers.append(name)
-            outMsg = name+";"+"InitClientSuccess"+";"+"Hello "+name+" wait for "+str(self.factory.nuClients-len(self.factory.connectedPlayers))+" more Clients...."+";"+"Ende"
+            if name not in self.factory.connectedPlayers:
+                self.factory.connectedPlayers.append(name)
+                outMsg = name+";"+"InitClientSuccess"+";"+"Hello "+name+" wait for "+str(self.factory.nuClients-len(self.factory.connectedPlayers))+" more Clients...."+";"+"Ende"
+            else:
+                outMsg = name+";"+"Error"+";"+"Hello "+name+" there is already a player connected with this name. Connected Players: "+str(self.factory.nuClients-len(self.factory.connectedPlayers))+" "+";"+"Ende"
             if len(self.factory.connectedPlayers) == self.factory.nuClients:
                 self.factory.serverState  = "ALL_CONNECTED"
 
