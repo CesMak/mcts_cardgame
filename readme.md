@@ -1,6 +1,6 @@
-<img src="/data/imgs/rl_players.png" width="500">
+<img src="/data/imgs/rl_players.png" width="800">
 
-To play a card as HUMAN **double click** the card.
+To play a card as HUMAN **(double) mouse click** the card.
 
 # Windows EXE Versions
 * Download [witches_0.1.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
@@ -12,11 +12,12 @@ Commited Versions:
   * commit **witches_0.1** Beta shifting included in learning process
   * commit **witches_0.2** Beta shifting included also in gui.py (fixed core dumped when playing with human)
   * commit **witches_0.3** MultiPlayer Version see in **online folder**
+  * commit **witches_0.4** MultiPlayer Version see in **online folder** (includes: marked card pressed, sleeping, simple click)
 
 ```
 # for single Player (one PC)
 python gui.py
-# for multi Player (online TCP Server-Client)
+# for multi Player (in online folder:)
 python start_server.py
 python start_client.py
 ```

@@ -35,7 +35,8 @@ class card(object):
 class deck(object):
     def __init__(self, nu_cards, seed=None):
         self.cards    = []
-        self.nu_cards = nu_cards # e.g. 4 or maximum is 15
+        self.nu_cards = nu_cards # e.g. 4 or maximum is 16?
+        #todo assert max cards here
         if seed is not None:
             random.seed(seed)
         self.build()
@@ -50,7 +51,7 @@ class deck(object):
         self.cards = []
         idx        = 0
         for color in ['B', 'G', 'R', 'Y']:
-            for val in range(16-self.nu_cards, 16):# choose different deck size here!
+            for val in range(0, self.nu_cards):# choose different deck size here! max is 16
                 self.cards.append(card(color, val, idx))
                 idx +=1
 
@@ -109,16 +110,13 @@ class player(object):
     def getHandCardsSorted(self):
         return sorted(self.hand, key = lambda x: ( x.color,  x.value))
 
-    def getBinaryOptions(self, incolor, players, cards, shifting_phase=False):
+    def getBinaryOptions(self, incolor, players, cards, shifting):
         #returns 0....1... x1 array BGRY 0...15 sorted
         options_list = [0]*players*cards
-        if shifting_phase: #TODO!!!
-            print("IN HERE TODO")
-            options =self.hand
+        if shifting:
+            unique_idx = self.cards2Idx(self.hand)
         else:
-            options      = self.getOptions(incolor)
-
-        unique_idx = self.hand2Idx(options)
+            unique_idx = self.hand2Idx(self.getOptions(incolor))
         for idx in unique_idx:
             options_list[idx] = 1
         return options_list
@@ -171,6 +169,12 @@ class player(object):
         if orderOptions: return sorted(options, key = lambda x: ( x[1].color,  x[1].value))
         return options
 
+    def cards2Idx(self, cardlist):
+        result = []
+        for i in cardlist:
+            result.append(i.idx)
+        return result
+
     def hand2Idx(self, hand_idx):
         #convert hand index to unique card index
         result = []
@@ -219,9 +223,9 @@ class player(object):
         for stich in input_cards:
             for card in stich:
                 if card is not None:
-                    if card.color == "R" and card.value <15 and card.value!=11 and card.value and not self.hasRedEleven():
+                    if card.color == "R" and card.value <15 and card.value!=11 and not self.hasRedEleven():
                         negative_result -=1
-                    if card.color == "R" and card.value <15 and card.value!=11 and card.value and self.hasRedEleven():
+                    if card.color == "R" and card.value <15 and card.value!=11 and self.hasRedEleven():
                         negative_result -=1*2
                     if not self.hasBlueEleven():
                         if card.color == "G" and card.value == 11:
@@ -320,6 +324,12 @@ class game(object):
             if card.idx == idx:
                 return i
 
+    def idxList2Cards(self, idxlist):
+        result  = []
+        for j in idxlist:
+            result.append(self.idx2Card(j))
+        return result
+
     def play_ai_move(self, ai_card_idx, print_=False):
         'card idx from 0....'
         current_player    =  self.active_player
@@ -336,14 +346,14 @@ class game(object):
                 else:
                     print("[{}] {} {}\t plays {}\tCard {}\tCard Index {}\t len {}  options {} on table".format(self.current_round, current_player, self.names_player[current_player], self.player_type[current_player], card, ai_card_idx, len(self.players[current_player].hand), card_options__), self.on_table_cards)
             self.correct_moves +=1
-            rewards, round_finished, gameOver = self.step(self.idx2Hand(tmp, current_player))
+            rewards, round_finished, gameOver = self.step(self.idx2Hand(tmp, current_player), print_ = print_)
             if print_ and round_finished:
                 print(rewards, self.correct_moves, gameOver, "\n")
             return rewards, round_finished, gameOver
         else:
             if print_:
                 if not player_has_card:
-                    print("Caution player does not have card:", card)
+                    print("Caution player does not have card:", card, " choose one of:", self.idxList2Cards(card_options))
                 if not tmp in valid_options_idx:
                     print("Caution option idx", tmp, "not in (idx)", card_options)
                 if not "RL" in self.player_type[current_player]:
@@ -386,14 +396,27 @@ class game(object):
             result.append(self.idx2Card(j))
         return result
 
+    def printCurrentState(self):
+        #Note: ontable, onhand played play_options laenge = players* cards
+        state = self.getState().flatten().astype(np.int)
+        ll    = self.nu_players * self.nu_cards
+        on_table, on_hand, played, play_options, add_states = state[0:ll], state[ll:2*ll], state[ll*2:3*ll], state[3*ll:4*ll], state[4*ll:len(state)]
+        for i,j in zip([on_table, on_hand, played, play_options], ["on_table", "on_hand", "played", "options"]):
+             #print(j, i, self.state2Cards(i))
+             print("\t", j, self.state2Cards(i))
+
     def stepRandomPlay(self, action_ai, print_=False):
         rewards, round_finished, gameOver = self.play_ai_move(action_ai, print_=print_)
         if rewards["ai_reward"] is None: # illegal move
             return None, self.correct_moves, True
+        elif gameOver and "final_rewards" in rewards:
+            # case that ai plays last card:
+            return rewards["final_rewards"][1], self.correct_moves, gameOver
         else:
+            #case that random player plays last card:
             rewards, round_finished, gameOver = self.playUntilAI(print_=print_)
             ai_reward = 0
-            if gameOver and round_finished and "final_rewards" in rewards:
+            if gameOver and "final_rewards" in rewards:
                 ai_reward = rewards["final_rewards"][1]
             return ai_reward, self.correct_moves, gameOver
 
@@ -480,14 +503,19 @@ class game(object):
 
 
     def getState(self):
-        play_options = self.players[self.active_player].getBinaryOptions(self.getInColor(), self.nu_players, self.nu_cards, shifting_phase=False)# TODO self.shifting_phase
+        play_options = self.players[self.active_player].getBinaryOptions(self.getInColor(), self.nu_players, self.nu_cards, self.shifting_phase)# TODO self.shifting_phase
         #play_options = self.convertAvailableActions(play_options)
         on_table, on_hand, played = self.getmyState(self.active_player, self.nu_players, self.nu_cards)
-        add_states = [] #48= with has cards,+12=60 for does not have card anymore...
+        add_states = [] #(nu_players-1)*5
         for i in range(len(self.players)):
             if i!=self.active_player:
                 add_states.extend(self.getAdditionalState(i))
         return np.asarray([on_table+ on_hand+ played+ play_options+ add_states])
+
+    def getLenStates(self):
+        len_add_states = self.nu_players *5 #
+        len_on_hand    = self.nu_players * self.nu_cards
+        return len_add_states, len_on_hand
 
     def isGameFinished(self):
         cards = 0
@@ -520,7 +548,7 @@ class game(object):
         else:
             return self.players[player].getOptions(self.getInColor())
 
-    def step(self, card_idx):
+    def step(self, card_idx, print_=False):
         #Note that card_idx is a Hand Card IDX!
         self.shifting_phase = (self.shifted_cards<=self.nu_players*self.nu_shift_cards)
         if self.shifting_phase and self.nu_shift_cards>0:
@@ -531,11 +559,11 @@ class game(object):
             round_finished = False
             if self.shifted_cards%self.nu_players == 0:
                 round_finished = True
-            #print("Shift Round:", shift_round, "Shifted Cards:", self.shifted_cards, "round_finished", round_finished)
+            if print_: print("Shift Round:", shift_round, "Shifted Cards:", self.shifted_cards, "round_finished", round_finished)
             if shift_round == (self.nu_shift_cards)-1 and round_finished:
-                #print("\nShifting PHASE FINISHED!!!!!!\n")
+                if print_: print("\nShifting PHASE FINISHED!!!!!!\n")
                 for player in self.players:
-                    #print(player.name, player.take_hand)
+                    if print_: print(player.name, "takes now", player.take_hand)
                     player.hand.extend(player.take_hand)
                 self.shifted_cards  = 100
                 self.shifting_phase = False
@@ -593,7 +621,7 @@ class game(object):
             result.extend([1])
         else:
             result.extend([0])
-        result.extend(player.colorFree) # 4 per player
+        result.extend(player.colorFree) # 4 per player -> 12 states
         return result
 
 

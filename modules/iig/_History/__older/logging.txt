@@ -1,0 +1,6 @@
+Game ,0050000, reward per game in 0 g. ,0.0, corr_moves ,0.3554,  Time ,0:01:05.285890,
+Game ,0100000, reward per game in 6 g. ,-4.1667, corr_moves ,0.8314,  Time ,0:02:19.251534,
+Game ,0150000, reward per game in 224 g. ,-1.9732, corr_moves ,1.874,  Time ,0:04:03.734700,
+Game ,0200000, reward per game in 1415 g. ,-2.3689, corr_moves ,3.461,  Time ,0:07:01.107278,
+Game ,0250000, reward per game in 2132 g. ,-2.2795, corr_moves ,4.033,  Time ,0:12:53.068910,
+Game ,0300000, reward per game in 2705 g. ,-2.437, corr_moves ,4.497,  Time ,0:20:28.309569,

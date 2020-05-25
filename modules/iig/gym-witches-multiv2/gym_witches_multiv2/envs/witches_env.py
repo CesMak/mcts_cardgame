@@ -6,37 +6,80 @@ import numpy as np
 
 class WitchesEnvMulti(gym.Env):
     def __init__(self):
-        # Create the game:
-        options   = {"names": ["Max", "Lea", "Jo", "Tim"], "type": ["RL", "RL", "RL", "RL"], "nu_shift_cards": 0, "nu_cards": 6, "seed": None}
+        # Create the train game:
+        # Lowest 10 cards, if nu_shift_cards=0 no cards are shifted.
+        #Max cards in witches is 15
+        options   = {"names": ["Max", "Lea", "Jo", "Tim"], "type": ["RL", "RL", "RL", "RL"], "nu_shift_cards": 2, "nu_cards": 8, "seed": None}
         self.my_game       = game(options)
         self.correct_moves = 0
 
-        ### Create game for testing with random players:
-        options_test   = {"names": ["Max", "Lea", "Jo", "Tim"], "type": ["RANDOM", "RL", "RANDOM", "RANDOM"], "nu_shift_cards": 0, "nu_cards": 6, "seed": None}
-        self.test_game     = game(options_test)
+        ### Create the test game (only one RL)
+        self.options_test   = {"names": ["Max", "Lea", "Jo", "Tim"], "type": ["RANDOM", "RL", "RANDOM", "RANDOM"], "nu_shift_cards": 2, "nu_cards": 8, "seed": None}
+        self.test_game     = game(self.options_test)
 
-        states          = self.my_game.getState().flatten().astype(np.int).shape#16*4=64
+        states          = self.my_game.getState().flatten().astype(np.int).shape
         actions         = self.my_game.nu_players * self.my_game.nu_cards
         self.action_space      = gym.spaces.Discrete(actions)
         self.observation_space = gym.spaces.Discrete(states[0])
 
+        # Reward style:
+        self.style = "final"
+
     def reset(self):
+        'used in train game'
         self.my_game.reset()
         self.correct_moves = 0
-        self.reward_before = 0
-        self.number_of_won = [0, 0, 0, 0]
         return self.my_game.getState().flatten().astype(np.int)
 
     def step(self, action):
+        '''
+        used in train game
+        returns reward according to style
+        '''
         assert self.action_space.contains(action)
-        rewards, round_finished, gameOver = self.my_game.play_ai_move(action, print_=False)
-        return self.my_game.getState().flatten().astype(np.int), rewards, gameOver, {"round_finished": round_finished, "correct_moves":  self.correct_moves}
+        rewards, round_finished, done = self.my_game.play_ai_move(action, print_=False)
+        if done:
+            state = self.reset()
+        else:
+            state = self.my_game.getState().flatten().astype(np.int)
+        return state, self.selectReward(rewards, round_finished, done, self.style), done, {"round_finished": round_finished, "correct_moves":  self.correct_moves}
 
-    def stepRandomPlay_Env(self, ai_action, print=False):
-        rewards, corr_moves, done = self.test_game.stepRandomPlay(ai_action, print_=print)
+    def selectReward(self, rewards, round_finished, done, style="final"):
+        '''
+        final:
+            - returns -100 for wrong move
+            - returns 0    for correct move
+            - returns [x, x, x, x] at End of game (Rewards of 4 players)
+        '''
+
+        if style == "final":
+            if rewards["ai_reward"] is None: # illegal move
+                return -50 #-100 before
+            elif round_finished and done and rewards["state"] == "play" and not rewards["ai_reward"] is None:
+                return rewards["final_rewards"]
+            else:
+                self.correct_moves += 1
+                return 0
+        elif style =="same_shape": # required for baselines
+            if rewards["ai_reward"] is None: # illegal move
+                return [-100, -100, -100, -100]
+            elif round_finished and done and rewards["state"] == "play" and not rewards["ai_reward"] is None:
+                return rewards["final_rewards"]
+            else:
+                self.correct_moves += 1
+                return [0, 0, 0, 0]
+
+    def stepRandomPlay_Env(self, ai_action, print__=False):
+        'used for test game'
+        rewards, corr_moves, done = self.test_game.stepRandomPlay(ai_action, print_=print__)
         return self.test_game.getState().flatten().astype(np.int), rewards, corr_moves, done
 
-    def resetRandomPlay_Env(self, print=False):
+    def resetRandomPlay_Env(self, print__=False):
+        'used for test game'
         self.test_game.reset()
-        rewards, round_finished, gameOver = self.test_game.playUntilAI(print_=print)
+        #print Hand of RL player:
+        if print__:
+            print("Hand of AI: ", self.options_test["names"][1])
+            print(self.test_game.players[1].hand)
+        self.test_game.playUntilAI(print_=print__)
         return self.test_game.getState().flatten().astype(np.int)
