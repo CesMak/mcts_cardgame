@@ -481,8 +481,6 @@ class cardTableWidget(QWidget):
 #########################SERVER #################################
 #########################SERVER #################################
 
-
-
     def start_server(self):
         import server
 
@@ -492,6 +490,13 @@ class cardTableWidget(QWidget):
         s.connect(("8.8.8.8", 80))
         ip_address = s.getsockname()[0]
         return ip_address, hostname
+
+    def getNuClients(self, list):
+        u = 0
+        for i in list:
+            if "Client" in i:
+                u+=1
+        return u
 
     def findFirstClient(self, list):
         for j,i in enumerate(list):
@@ -533,8 +538,29 @@ class cardTableWidget(QWidget):
             # give it the name of the first found Client
             self.clientName = self.options["names"][self.findFirstClient(self.options["type"])]
             self.openClient()
+        elif "Local" in self.options["online_type"]:
+            clients = self.getNuClients(self.options["type"])
+            if clients!=1:
+                self.changePlayerName(self.mode_label,  "Error use only 1 client \"type\": [\"Client\", \"RL0\", \"RL0\", \"RL1\"],\" ")
+                time.sleep(1)
+                self.changePlayerName(self.mode_label,  "Please close app and restart it!")
+            self.changePlayerName(self.mode_label,  "Mode: LocalHost - Play against other ai's")
+            self.view.viewport().repaint()
+            time.sleep(1)
+            ip, host = self.getIP()
+            self.changePlayerName(self.mode_label,  str(host)+" "+" IP:"+str(ip))
+            #1. Open Server in seperate Thread
+            self.options["open_ip"] = ip
+            server_thread = threading.Thread(target=self.start_server, )
+            server_thread.start()
+
+            # #2. Open Client
+            self.options["online_type"] = "Client"
+            # give it the name of the first found Client
+            self.clientName = self.options["names"][self.findFirstClient(self.options["type"])]
+            self.openClient()
         else:
-            print("ERROR TODO Mode not online")
+            self.changePlayerName(self.mode_label,  "Error: choose Local, Server or Client as online type")
 
     def clientReconnectTimer(self):
         self.openClient()
@@ -860,6 +886,12 @@ class cardTableWidget(QWidget):
             self.getCardsList()[0].setPos(x+dx[playerNum-1]*c2, y+dy[playerNum-1]*c2)#change the position
             n += 1
             c2 += 1
+
+class CardTableWidgetExtend(cardTableWidget):
+    """ extension of CardTableWidget """
+    def __init__(self):
+        super(CardTableWidgetExtend, self).__init__()
+
 
 def main():
     # not used if gui.py is started!
