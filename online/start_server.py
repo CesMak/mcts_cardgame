@@ -49,6 +49,11 @@ class MainWindow(QMainWindow):
         # self.cardsTable.getCardsList()[3].setPos(200+120*3, 230)
         #self.cardsTable.getCardsList()
 
+    def closeEvent(self, event):
+        print("Nasty error close, disable Server and Client!")
+        event.accept() # let the window close
+        print(eee)
+
 def initStartupProgressBar():
     splash_pix = QPixmap(300,100)
     splash_pix.fill(QtCore.Qt.white)

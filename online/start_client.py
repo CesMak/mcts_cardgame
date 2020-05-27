@@ -31,6 +31,12 @@ class MainWindow(QMainWindow):
         self.centralWidget.setLayout(self.mainLayout)
 
         self.setCentralWidget(self.centralWidget)
+        
+    def closeEvent(self, event):
+        print("Nasty error close, disable Server and Client!")
+        event.accept() # let the window close
+        print(eee)
+
 
 def initStartupProgressBar():
     splash_pix = QPixmap(300,100)

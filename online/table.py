@@ -152,6 +152,8 @@ class cardTableWidget(QWidget):
         self.games_played     = 0
         self.reset_client()
 
+        self.server_thread = None
+
 
     def reset_client(self):
         # used  also in "Restart"
@@ -530,8 +532,8 @@ class cardTableWidget(QWidget):
             page = str(urllib.request.urlopen("http://checkip.dyndns.org/").read())
             print(">>>THIS IS SERVER OPEN IP ADDRESS:",  re.search(r'.*?<body>(.*).*?</body>', page).group(1))
             print(">>>LOCAL IP OF THIS PC IN LAN    :", self.getIP())
-            server_thread = threading.Thread(target=self.start_server, )
-            server_thread.start()
+            self.server_thread = threading.Thread(target=self.start_server, )
+            self.server_thread.start()
 
             #2. Open Client
             self.options["online_type"] = "Client"
@@ -551,8 +553,8 @@ class cardTableWidget(QWidget):
             self.changePlayerName(self.mode_label,  str(host)+" "+" IP:"+str(ip))
             #1. Open Server in seperate Thread
             self.options["open_ip"] = ip
-            server_thread = threading.Thread(target=self.start_server, )
-            server_thread.start()
+            self.server_thread = threading.Thread(target=self.start_server, )
+            self.server_thread.start()
 
             # #2. Open Client
             self.options["online_type"] = "Client"
