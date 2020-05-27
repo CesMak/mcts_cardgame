@@ -5,7 +5,12 @@ To play a card as HUMAN **(double) mouse click** the card.
 # Windows EXE Versions
 * Download [witches_0.1.zip](https://drive.google.com/file/d/1UZQyMhH46qzoKJoSYkbsGtTatB2liqXQ/view?usp=sharing) and open the **gui.exe**.
 * MultiPlayer [witches_0.2.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
-* **Most recent** MultiPlayer [witches_0.3.zip](https://drive.google.com/open?id=1KOv3hxV2_3O0YHzcyxPl_z-BRyG4bPwe)
+* MultiPlayer [witches_0.3.zip](https://drive.google.com/open?id=1KOv3hxV2_3O0YHzcyxPl_z-BRyG4bPwe)
+* **most recent** [witches_05.zip](https://drive.google.com/file/d/1Ipeda58TdjqFjbPv9sVh7_GKDpyxp-qp/view?usp=sharing)
+  * Download go into the **online** folder
+  * Disable your firewall and **start_server.exe**
+  * Click **start**
+  * If nothing happens -> You got an onnx error (install python 3.7 and setup the PATH Variable)
 
 # Linux
 Commited Versions:
@@ -13,6 +18,7 @@ Commited Versions:
   * commit **witches_0.2** Beta shifting included also in gui.py (fixed core dumped when playing with human)
   * commit **witches_0.3** MultiPlayer Version see in **online folder**
   * commit **witches_0.4** MultiPlayer Version see in **online folder** (includes: marked card pressed, sleeping, simple click)
+  * commit **witches_0.5_beta** see in **online folder** (includes play locally clean exit on windows)
 
 ```
 # for single Player (one PC)
