@@ -7,10 +7,10 @@ To play a card as HUMAN **(double) mouse click** the card.
 * MultiPlayer [witches_0.2.zip](https://drive.google.com/file/d/1sRG3SbiLQUZq3qt2FQw-o59XjfTHH68V/view?usp=sharing)
 * MultiPlayer [witches_0.3.zip](https://drive.google.com/open?id=1KOv3hxV2_3O0YHzcyxPl_z-BRyG4bPwe)
 * **most recent** [witches_05.zip](https://drive.google.com/file/d/1Ipeda58TdjqFjbPv9sVh7_GKDpyxp-qp/view?usp=sharing)
+  * Download [Microsoft Visual C++ Redistributable X64](https://aka.ms/vs/16/release/vc_redist.x64.exe) btw. [x86](https://aka.ms/vs/16/release/vc_redist.x86.exe) from [here](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads) this is required for [onnxruntime](https://github.com/microsoft/onnxruntime/issues/4054)
   * Download go into the **online** folder
   * Disable your firewall and **start_server.exe**
   * Click **start**
-  * If nothing happens -> You got an onnx error (install python 3.7 and setup the PATH Variable)
 
 # Linux
 Commited Versions:
