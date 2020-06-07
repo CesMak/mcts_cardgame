@@ -1,6 +1,0 @@
-setup.py
-gym_witches.egg-info/PKG-INFO
-gym_witches.egg-info/SOURCES.txt
-gym_witches.egg-info/dependency_links.txt
-gym_witches.egg-info/requires.txt
-gym_witches.egg-info/top_level.txt

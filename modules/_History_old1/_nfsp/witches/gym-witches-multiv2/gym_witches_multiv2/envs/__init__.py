@@ -1,0 +1,1 @@
+from gym_witches_multiv2.envs.witches_env import WitchesEnvMulti

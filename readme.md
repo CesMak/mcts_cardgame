@@ -113,6 +113,18 @@ I tested the pytorch [REINFORCE](https://pytorch.org/docs/stable/distributions.h
 * 50 games played
 * half of them won by trained player!
 ![is_learning](data/imgs/is_learning.png)
+* See also [pytorchForum question](https://discuss.pytorch.org/t/reinforce-for-a-multiplayer-game/73207):
+```
+    most of the time for most gym environments three Linear layers is enough, maybe 64 ~ 500 neurons per level and I would suggest you use a pyramid like structure. Conv2d is only necessary for visual inputs.
+
+    Must use discount < 1, otherwise there is no garantee on convergence, because the convergence of magic like RL algorithms relies on a simple math principle, you must have learned it in your freshman math analysis class: converging series or a little bit more advanced compaction
+
+    Because the naive REINFORCE algorithm is bad, try use DQN, RAINBOW, DDPG,TD3, A2C, A3C, PPO, TRPO, ACKTR or whatever you like. Follow the train result reference openai gym train reference, normally you need to let the agent interact with the environment for 100K or even 1M steps, for extremely complex real life scenes, you need stacks of servers and massively distributed algorithms like IMPALA. There are many many many many methods to learn faster, but I would recommend you to start with PPO. But PPO is not a solution once and for all, it cannot solve some scenes like the hardcore bipedalwalker from openai gym.
+
+    You will know that it is learning, by looking at its behavior changing from a total noise, to a fool, to an expert, and a fool again. Reward and loss might be good indicators, but be careful of your reward design, as your networks will exploit it and take lazy counter measures! Thats’ called reward shaping.
+
+    Please use batches, because it can stablelize training, because pytorch will average the gradients computed from each sample from the batch, You see more, you can judge better, right? normally 100~256 samples per batch, but some studies says monsterous batchsize could be helpful like 20000+
+```
 
 ## PYTORCH PPO
 ### Learning Procedure  (gym interface)
@@ -192,6 +204,19 @@ at commit **best_learning_mc** inv moves is at 0.01 after 270000 episodes. Rewar
   * For each opponent has in offhand [11 and 12, 13, 14, J] -> 15 states
   * Not has... color x
   * Control before
+
+### 07.06.2020 PPO WORKING NOW WITH SHIFTING!
+![_best_no_lstm_shuffle_final_rewrds_nobug_withshift-img](data/imgs/_best_no_lstm_shuffle_final_rewrds_nobug_withshift.png)
+* Shuffling was used
+* Final rewarding was used
+* All logic bugs were deleted
+* It was learned with increase batch size (breaks after some time - error unknown)
+* Learn further1 with smaller eps, higher batch size and a little bit lower lr
+* Learn further2 again with smaller eps, higher batch size and a little bit lower lr
+* Final Result:
+  * Against 3 random players achieves 16.95 correct moves of 17
+  * Best rewarding 0.5 per game whereas the mean of random is -8.1 per game 
+
 
 ### PPO with gae
 See the file **ppo2_witches.py**

@@ -1,0 +1,6 @@
+setup.py
+gym_witches_multiv2.egg-info/PKG-INFO
+gym_witches_multiv2.egg-info/SOURCES.txt
+gym_witches_multiv2.egg-info/dependency_links.txt
+gym_witches_multiv2.egg-info/requires.txt
+gym_witches_multiv2.egg-info/top_level.txt
